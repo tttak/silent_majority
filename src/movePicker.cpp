@@ -18,9 +18,9 @@ enum Stages {
 	QSEARCH_RECAPTURES, QRECAPTURES
 };
 
-  void insertion_sort(MoveStack* begin, MoveStack* end)
+  void insertion_sort(ExtMove* begin, ExtMove* end)
   {
-    MoveStack tmp, *p, *q;
+    ExtMove tmp, *p, *q;
 
     for (p = begin + 1; p < end; ++p)
     {
@@ -31,7 +31,7 @@ enum Stages {
     }
   }
 
-  MoveStack pick_best(MoveStack* begin, MoveStack* end)
+  Move pick_best(ExtMove* begin, ExtMove* end)
   {
       std::swap(*begin, *std::max_element(begin, end));
       return *begin;
@@ -47,9 +47,9 @@ MovePicker::MovePicker(const Position& p, const Move ttm, const Depth d, Search:
     Square prevSq = (ss-1)->currentMove.to();
     countermove = pos.thisThread()->counterMoves[pos.piece(prevSq)][prevSq];
 
-    stage = pos.inCheck() ? EVASION : MAIN_SEARCH;
-	ttMove = (!ttm.isNone() && pos.moveIsPseudoLegal(ttm) ? ttm : Move::moveNone());
-	stage += ttMove.isNone();
+    stage = (pos.inCheck() ? EVASION : MAIN_SEARCH);
+	ttMove = (ttm && pos.moveIsPseudoLegal(ttm) ? ttm : Move::moveNone());
+	stage += (ttMove == MOVE_NONE);
 }
 
 // 静止探索で呼ばれる。
@@ -63,18 +63,18 @@ MovePicker::MovePicker(const Position& p, Move ttm, const Depth d, const Square 
 
 	// todo: ここで Stockfish は qcheck がある。
 
-	else if (DepthQRecaptures < d)
+	else if (d > DepthQRecaptures)
         stage = QSEARCH_NO_CHECKS;
 
 	else {
         stage = QSEARCH_RECAPTURES;
 		recaptureSquare = sq;
-		ttm = Move::moveNone();
+		//ttm = Move::moveNone();
 		return;
 	}
 
-	ttMove = (!ttm.isNone() && pos.moveIsPseudoLegal(ttm) ? ttm : Move::moveNone());
-    stage += ttMove.isNone();
+	ttMove = (ttm && pos.moveIsPseudoLegal(ttm) ? ttm : Move::moveNone());
+    stage += (ttMove == MOVE_NONE);
 }
 
 MovePicker::MovePicker(const Position& p, const Move ttm, Score th)
@@ -84,12 +84,12 @@ MovePicker::MovePicker(const Position& p, const Move ttm, Score th)
 
 	stage = PROBCUT;
 
-	ttMove = !ttm.isNone()
-		&& pos.moveIsPseudoLegal(ttm)
-		&& ttm.isCapture()
-		&& pos.see(ttm) > threshold ? ttm : MOVE_NONE;
+	ttMove = (ttm
+			  && pos.moveIsPseudoLegal(ttm)
+			  && ttm.isCapture()
+			  && pos.see(ttm) > threshold ? ttm : MOVE_NONE);
 
-	stage += ttMove.isNone();
+	stage += (ttMove == MOVE_NONE);
 }
 
 void MovePicker::scoreCaptures() {
@@ -106,17 +106,17 @@ template <bool IsDrop> void MovePicker::scoreNonCapturesMinusPro() {
 	Color c = pos.turn();
 #endif
 
-	const CounterMoveStats* cm = (ss - 1)->counterMoves;
-	const CounterMoveStats* fm = (ss - 2)->counterMoves;
-	const CounterMoveStats* f2 = (ss - 4)->counterMoves;
+	const CounterMoveStats* cmh = (ss-1)->counterMoves;
+	const CounterMoveStats* fmh = (ss-2)->counterMoves;
+	const CounterMoveStats* fmh2 = (ss-4)->counterMoves;
 
 	for (auto& m : *this) {
 		const Move move = m;
 
-		m.score = history[pos.moved_piece(move)][move.to()]
-			+ (cm ? (*cm)[pos.moved_piece(move)][move.to()] : ScoreZero)
-			+ (fm ? (*fm)[pos.moved_piece(move)][move.to()] : ScoreZero)
-			+ (f2 ? (*f2)[pos.moved_piece(move)][move.to()] : ScoreZero)
+		m.score = history[pos.movedPiece(move)][move.to()]
+			+ (cmh  ?  (*cmh)[pos.movedPiece(move)][move.to()] : ScoreZero)
+			+ (fmh  ?  (*fmh)[pos.movedPiece(move)][move.to()] : ScoreZero)
+			+ (fmh2 ? (*fmh2)[pos.movedPiece(move)][move.to()] : ScoreZero)
 #ifdef FROMTO
 			+ fromTo.get(c, m)
 #endif
@@ -136,12 +136,11 @@ void MovePicker::scoreEvasions() {
 		if (move.isCaptureOrPromotion()) {
 			m.score = pos.capturePieceScore(pos.piece(move.to())) + HistoryStats::Max;
 			if (move.isPromotion()) {
-				const PieceType pt = pieceToPieceType(pos.piece(move.from()));
-				m.score += pos.promotePieceScore(pt);
+				m.score += Position::promotePieceScore(move.pieceTypeFrom());
 			}
 		}
 		else
-			m.score = history.value(move.isDrop(), pos.moved_piece(move), move.to())
+			m.score = history[pos.movedPiece(move)][move.to()]
 #ifdef FROMTO
 			+ fromTo.get(c, move)
 #endif
@@ -170,7 +169,7 @@ Move MovePicker::nextMove() {
 		{
 			move = pick_best(cur++, endMoves);
 			if (move != ttMove) {
-				if (ScoreZero <= pos.see(move))
+				if (pos.seeSign(move) >= ScoreZero)
 					return move;
 
 				// Losing capture, move it to the beginning of the array
@@ -180,7 +179,7 @@ Move MovePicker::nextMove() {
 		++stage;
 
 		move = ss->killers[0];  // First killer move
-		if (!move.isNone()
+		if (move != MOVE_NONE
 			&& move != ttMove
 			&& pos.moveIsPseudoLegal(move, true)
 			&& pos.piece(move.to()) == Empty)
@@ -189,7 +188,7 @@ Move MovePicker::nextMove() {
 	case KILLERS:
 		++stage;
 		move = ss->killers[1]; // Second killer move
-		if (!move.isNone()
+		if (move != MOVE_NONE
 			&& move != ttMove
 			&& pos.moveIsPseudoLegal(move, true)
 			&& pos.piece(move.to()) == Empty)
@@ -214,9 +213,9 @@ Move MovePicker::nextMove() {
 		endMoves = generateMoves<Drop>(cur, pos);
 		scoreNonCapturesMinusPro<true>();
 		cur = endBadCaptures;
-		if (depth < static_cast<Depth>(3 * OnePly))
+		if (depth < 3 * OnePly)
 		{
-			MoveStack* goodQuiet = std::partition(cur, endMoves, [](const MoveStack& m)
+			ExtMove* goodQuiet = std::partition(cur, endMoves, [](const ExtMove& m)
 			                                      { return m.score > ScoreZero; });
 			insertion_sort(cur, goodQuiet);
 		}
@@ -245,8 +244,7 @@ Move MovePicker::nextMove() {
 	case EVASIONS_INIT:
 		cur = moves;
 		endMoves = generateMoves<Evasion>(cur, pos);
-		if (endMoves - moves > 1)
-			scoreEvasions();
+		scoreEvasions();
 		++stage;
 
 	case ALL_EVASIONS:
@@ -268,8 +266,8 @@ Move MovePicker::nextMove() {
 		while (cur < endMoves)
 		{
 			move = pick_best(cur++, endMoves);
-			// todo: see が確実に駒打ちじゃないから、内部で駒打ちか判定してるのは少し無駄。
-			if (move != ttMove && threshold < pos.see(move))
+			if (move != ttMove 
+				&& pos.see(move) > threshold)
 				return move;
 		}
 		break;

@@ -66,7 +66,9 @@ void Thread::start_searching(bool resume) {
 }
 
 void Thread::idle_loop() {
-
+#ifdef Handle_Windows_Processors_Groups
+	WinProcGroup::bindThisThread(idx);
+#endif
   while (!exit)
   {
     std::unique_lock<Mutex> lk(mutex);
@@ -109,9 +111,9 @@ void ThreadPool::readUSIOptions() {
 	}
 }
 
-int64_t ThreadPool::nodes_searched() {
+uint64_t ThreadPool::nodes_searched() {
 
-  int64_t nodes = 0;
+  uint64_t nodes = 0;
   for (Thread* th : *this)
       nodes += th->rootPos.nodesSearched();
   return nodes;
@@ -150,7 +152,7 @@ void ThreadPool::startThinking(const Position& pos, const Search::LimitsType& li
 	Search::think();
 #else
 
-    main()->start_searching();
+	main()->start_searching();
 #endif
 }
 
