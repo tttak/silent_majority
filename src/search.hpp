@@ -6,8 +6,8 @@
 #include "tt.hpp"
 #include "evaluate.hpp"
 
-template<typename T, bool CM> struct Stats;
-typedef Stats<Score, true> CounterMoveStats;
+template<typename T> struct Stats;
+typedef Stats<Score> CounterMoveStats;
 
 namespace Search {
 
@@ -33,6 +33,9 @@ struct RootMove {
 	bool operator < (const RootMove& m) const { return m.score < score; }
 	bool operator == (const Move& m) const { return pv[0] == m; }
     bool extract_ponder_from_tt(Position& pos);
+#ifdef USE_extractPVFromTT
+	void extractPVFromTT(Position& pos);
+#endif
 
 	Score score = -ScoreInfinite;
 	Score previousScore = -ScoreInfinite;
@@ -79,7 +82,6 @@ struct SignalsType {
 	void init();
     void clear();
     Score evaluate(Position& pos, Search::Stack* ss);
-    const Score Tempo = Score(20); // Must be visible to search
 
 }; // namespace Search
 
