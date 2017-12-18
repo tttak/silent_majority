@@ -30,7 +30,9 @@
 // 評価関数の SIMD 化
 #if defined HAVE_AVX2
 #define USE_AVX2_EVAL
+#ifndef HAVE_BMI2
 #define HAVE_BMI2
+#endif
 #elif defined HAVE_SSE4
 #define USE_SSE_EVAL
 #endif
