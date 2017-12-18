@@ -1,3 +1,8 @@
+# SILENT\_MAJORITY
+ [![Build Status](https://travis-ci.org/ohga/silent_majority.svg?branch=1.2)](https://travis-ci.org/ohga/silent_majority)
+ [![Build status](https://ci.appveyor.com/api/projects/status/13hah06b4damrsls?svg=true)](https://ci.appveyor.com/project/ohga/silent-majority)
+
+```
 概要
 
 SILENT_MAJORITYはAperyを改造した USI プロトコルの将棋エンジンです。
@@ -38,3 +43,4 @@ SILENT_MAJORITY_x64.exe をダブルクリックして、usi とコマンドを�
 usiok が表示されない場合は、ご利用の PC では SILENT_MAJORITY が動作しないようです。
 
 将棋所に登録出来ましたら、後は将棋所の使い方を参照して下さい。
+```

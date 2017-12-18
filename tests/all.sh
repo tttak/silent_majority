@@ -18,9 +18,10 @@ if [ $? != 0 ]; then
 fi
 
 cp ../build/visualc14/silent_majority/benchmark.sfen .
+mv apery_sdt5/bin/20171106 20161007
 
 echo "loading eval.bin.."
-cat apery_sdt5/bin/20171106/*.bin > /dev/null 2>&1
+cat 20161007/*.bin > /dev/null 2>&1
 
 ./moves.sh
 if [ $? != 0 ]; then

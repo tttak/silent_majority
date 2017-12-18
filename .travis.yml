@@ -1,0 +1,45 @@
+language: cpp
+os: linux
+dist: xenial
+sudo: required
+compiler: clang
+branches:
+  only:
+    - master
+    - 1.2
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty-3.9
+    packages:
+      - clang-3.9
+      - g++-6
+      - libc++-dev
+      - cmake
+      - cmake-data
+      - libomp5
+      - libomp-dev
+env:
+  global:
+    - CC='clang-3.9'
+    - CXX='clang++-3.9'
+    - LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:/usr/local/clang-5.0.0/lib
+  matrix:
+    - TARGET=bmi2
+    - TARGET=sse
+
+before_install:
+  - env
+  - cat /proc/cpuinfo
+  - export SRC_DIR="`pwd`/src"
+  - export TEST_DIR="`pwd`/tests"
+script:
+  - pwd
+  - echo $TARGET
+  - mkdir "$TRAVIS_BUILD_DIR/build-$TARGET"
+  - cd "$TRAVIS_BUILD_DIR/build-$TARGET"
+  - cmake -Dtarget=$TARGET "$SRC_DIR" && make
+  - mv apery-by-clang "$TEST_DIR"
+  - cd $TEST_DIR
+  - ./all.sh
