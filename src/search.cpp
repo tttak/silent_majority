@@ -166,14 +166,14 @@ namespace {
 		*pv = MOVE_NONE;
 	}
 
-	void updateCMStats(Stack* ss, Piece pc, Square s, int bonus) {
+	void updateCMStats(Search::Stack* ss, Piece pc, Square s, int bonus) {
 
         for (int i : {1, 2, 4})
             if ((ss-i)->currentMove.isOK())
                 (ss-i)->counterMoves->update(pc, s, bonus);
 	}
 
-	void updateStats(const Position& pos, Stack* ss, Move move,
+	void updateStats(const Position& pos, Search::Stack* ss, Move move,
 					  Move* quiets, int quietsCnt, int bonus) {
 
 		if (ss->killers[0] != move)
@@ -561,14 +561,14 @@ finalize:
 
 void Thread::search() {
 
-    Stack stack[MaxPly+7], *ss = stack+4; // To allow referencing (ss-5) and (ss+2)
+    Search::Stack stack[MaxPly+7], *ss = stack+4; // To allow referencing (ss-5) and (ss+2)
     Score bestScore, alpha, beta, delta;
     Move easyMove = MOVE_NONE;
     MainThread* mainThread = (this == Threads.main() ? Threads.main() : nullptr);
     int lastInfoTime = -1; // 将棋所のコンソールが詰まる問題への対処用
 	int pv_interval = Options["PvInterval"]; // PVの出力間隔[ms]
 
-	std::memset(ss-4, 0, 7 * sizeof(Stack));
+	std::memset(ss-4, 0, 7 * sizeof(Search::Stack));
     for (int i = 4; i > 0; i--)
         (ss-i)->counterMoves = &this->counterMoveHistory[Empty][0]; // Use as sentinel
 
@@ -787,7 +787,7 @@ void Searcher::detectInaniwa(const Position& pos) {
 
 namespace {
 template <NodeType NT>
-Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth depth, const bool cutNode, bool skipEarlyPruning) {
+Score search(Position& pos, Search::Stack* ss, Score alpha, Score beta, const Depth depth, const bool cutNode, bool skipEarlyPruning) {
 
     const bool PvNode = NT == PV;
     const bool rootNode = PvNode && (ss - 1)->ply == 0;
@@ -932,7 +932,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 
 	// step5
 	// evaluate the position statically
-	eval = ss->staticEval = evaluate(pos, ss); // Bonanza の差分評価の為、evaluate() を常に呼ぶ。
+	eval = ss->staticEval = ::evaluate(pos, ss); // Bonanza の差分評価の為、evaluate() を常に呼ぶ。
 	if (inCheck) {
 		eval = ss->staticEval = ScoreNone;
 		goto moves_loop;
@@ -1352,7 +1352,7 @@ moves_loop:
 }
 
 template <NodeType NT, bool INCHECK>
-Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth depth) {
+Score qsearch(Position& pos, Search::Stack* ss, Score alpha, Score beta, const Depth depth) {
 	const bool PVNode = (NT == PV);
     assert(NT == PV || NT == NonPV);
 	assert(INCHECK == pos.inCheck());
@@ -1411,7 +1411,7 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 
 		if (ttHit) {
 			if ((ss->staticEval = bestScore = tte->evalScore()) == ScoreNone)
-				ss->staticEval = bestScore = evaluate(pos, ss);
+				ss->staticEval = bestScore = ::evaluate(pos, ss);
 
 			if (ttScore != ScoreNone)
 				if (tte->bound() & (ttScore > bestScore ? BoundLower : BoundUpper))
@@ -1419,7 +1419,7 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 		}
 		else
 			ss->staticEval = bestScore = 
-            (((ss-1)->currentMove != MOVE_NULL) ? evaluate(pos, ss) 
+            (((ss-1)->currentMove != MOVE_NULL) ? ::evaluate(pos, ss) 
                                                 : -(ss-1)->staticEval + 2 * Tempo);
 
         // Stand pat
@@ -1437,7 +1437,7 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 		futilityBase = bestScore + 128; // todo: 128 より大きくて良いと思う。
 	}
 
-	evaluate(pos, ss);
+	::evaluate(pos, ss);
 
 	MovePicker mp(pos, ttMove, depth, (ss-1)->currentMove.to());
 	const CheckInfo ci(pos);

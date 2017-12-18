@@ -12,6 +12,7 @@
 
 class Position;
 class Thread;
+enum EvalIndex : int32_t;
 
 enum RepetitionType {
 	NotRepetition, RepetitionDraw, RepetitionWin, RepetitionLose,
@@ -26,8 +27,8 @@ struct CheckInfo {
 };
 
 struct ChangedListPair {
-	int newlist[2];
-	int oldlist[2];
+    EvalIndex newlist[2];
+    EvalIndex oldlist[2];
 };
 
 struct ChangedLists {

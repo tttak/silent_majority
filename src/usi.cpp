@@ -57,7 +57,7 @@ namespace USI {
 	void onHashSize(const Option& opt) { TT.resize(opt); }
     void onClearHash(const Option&)    { Search::clear();}
 	void onEvalDir(const Option& opt)    {
-		std::unique_ptr<Evaluater>(new Evaluater)->init(opt, true);
+		std::unique_ptr<Evaluator>(new Evaluator)->init(opt);
 	}
 
 bool CaseInsensitiveLess::operator () (const std::string& s1, const std::string& s2) const {
@@ -463,7 +463,7 @@ void USI::loop(int argc, char* argv[]) {
 												<< "\nusiok" << SYNCENDL;
 		else if (token == "go"       ) go(pos, ssCmd);
 		else if (token == "isready") {
-			std::unique_ptr<Evaluater>(new Evaluater)->init(Options["Eval_Dir"], true);
+			std::unique_ptr<Evaluator>(new Evaluator)->init(Options["Eval_Dir"]);
 			SYNCCOUT << "readyok" << SYNCENDL;
 		}
 		else if (token == "position" ) setPosition(pos, ssCmd);
@@ -481,7 +481,7 @@ void USI::loop(int argc, char* argv[]) {
 #if !defined MINIMUL
 		// 以下、デバッグ用
 		else if (token == "bench") {
-			std::unique_ptr<Evaluater>(new Evaluater)->init(Options["Eval_Dir"], true);	
+			std::unique_ptr<Evaluator>(new Evaluator)->init(Options["Eval_Dir"]);
 			benchmark(pos, ssCmd);
 		}
 		else if (token == "key"      ) SYNCCOUT << pos.getKey() << SYNCENDL;
@@ -494,7 +494,7 @@ void USI::loop(int argc, char* argv[]) {
 	} while (token != "quit" && argc == 1);
 
 	if (Options["Write_Synthesized_Eval"])
-		Evaluater::writeSynthesized(Options["Eval_Dir"]);
+		Evaluator::writeEvalFile(Options["Eval_Dir"]);
 
 	Threads.main()->wait_for_search_finished();
 }
