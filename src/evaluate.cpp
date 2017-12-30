@@ -38,11 +38,45 @@ namespace {
 		const int* list1 = pos.cplist1();
 
 		EvalSum sum;
+		sum.p[0] = { 0, 0 };
+		sum.p[1] = { 0, 0 };
 		sum.p[2][0] = Evaluater::KKP[sq_bk][sq_wk][index[0]][0];
 		sum.p[2][1] = Evaluater::KKP[sq_bk][sq_wk][index[0]][1];
 		const auto* pkppb = Evaluater::KPP[sq_bk         ][index[0]];
 		const auto* pkppw = Evaluater::KPP[inverse(sq_wk)][index[1]];
-#if defined USE_AVX2_EVAL || defined USE_SSE_EVAL
+#if defined USE_AVX2_EVAL
+		__m256i zero = _mm256_setzero_si256();
+		__m256i sum0 = zero;
+		__m256i sum1 = zero;
+		for (int i = 0; i < pos.nlist(); i += 8){
+			__m256i indexes0 = _mm256_loadu_si256((const __m256i*)(&list0[i]));
+			__m256i indexes1 = _mm256_loadu_si256((const __m256i*)(&list1[i]));
+			__m256i w0 = _mm256_i32gather_epi32(reinterpret_cast<const int*>(pkppb), indexes0, 4);
+			__m256i w1 = _mm256_i32gather_epi32(reinterpret_cast<const int*>(pkppw), indexes1, 4);
+
+			__m256i w0lo = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w0, 0));
+			sum0 = _mm256_add_epi32(sum0, w0lo);
+			__m256i w0hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w0, 1));
+			sum0 = _mm256_add_epi32(sum0, w0hi);
+
+			__m256i w1lo = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w1, 0));
+			sum1 = _mm256_add_epi32(sum1, w1lo);
+			__m256i w1hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w1, 1));
+			sum1 = _mm256_add_epi32(sum1, w1hi);
+        }
+
+		sum0 = _mm256_add_epi32(sum0, _mm256_srli_si256(sum0, 8));
+		__m128i sum0_128 = _mm_add_epi32(_mm256_extracti128_si256(sum0, 0), _mm256_extracti128_si256(sum0, 1));
+		std::array<int32_t, 2> sum0_array;
+		_mm_storel_epi64(reinterpret_cast<__m128i*>(&sum0_array), sum0_128);
+		sum.p[0] += sum0_array;
+
+		sum1 = _mm256_add_epi32(sum1, _mm256_srli_si256(sum1, 8));
+		__m128i sum1_128 = _mm_add_epi32(_mm256_extracti128_si256(sum1, 0), _mm256_extracti128_si256(sum1, 1));
+		std::array<int32_t, 2> sum1_array;
+		_mm_storel_epi64(reinterpret_cast<__m128i*>(&sum1_array), sum1_128);
+		sum.p[1] += sum1_array;
+#elif defined USE_SSE_EVAL
 		sum.m[0] = _mm_set_epi32(0, 0, *reinterpret_cast<const s32*>(&pkppw[list1[0]][0]), *reinterpret_cast<const s32*>(&pkppb[list0[0]][0]));
 		sum.m[0] = _mm_cvtepi16_epi32(sum.m[0]);
 		for (int i = 1; i < pos.nlist(); ++i) {
@@ -152,6 +186,49 @@ namespace {
 				const int* list1 = pos.plist1();
 				diff.p[1][0] = 0;
 				diff.p[1][1] = 0;
+
+#if defined USE_AVX2_EVAL
+				const int* list0 = pos.plist0();
+				__m256i zero = _mm256_setzero_si256();
+				__m256i diffp1 = zero;
+				#pragma unroll
+				for (int i = 0; i < pos.nlist() ; ++i)
+				{
+					diff.p[2] += Evaluater::KKP[sq_bk][sq_wk][list0[i]];
+					const int k1 = list1[i];
+					const auto* pkppw = ppkppw[k1];
+					int j = 0;
+					for (; j + 8 < i; j += 8)
+					{
+						__m256i indexes = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&list1[j]));
+						__m256i w = _mm256_i32gather_epi32(reinterpret_cast<const int*>(pkppw), indexes, 4);
+						__m256i wlo = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w, 0));
+						diffp1 = _mm256_add_epi32(diffp1, wlo);
+						__m256i whi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w, 1));
+						diffp1 = _mm256_add_epi32(diffp1, whi);
+					}
+
+					for (; j + 4 < i; j += 4)
+					{
+						__m128i indexes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&list1[j]));
+						__m128i w = _mm_i32gather_epi32(reinterpret_cast<const int*>(pkppw), indexes, 4);
+						__m256i wlo = _mm256_cvtepi16_epi32(w);
+						diffp1 = _mm256_add_epi32(diffp1, wlo);
+					}
+
+					for (; j < i; ++j)
+					{
+						const int l1 = list1[j];
+						diff.p[1] += pkppw[l1];
+					}
+				}
+
+				diffp1 = _mm256_add_epi32(diffp1, _mm256_srli_si256(diffp1, 8));
+				__m128i diffp1_128 = _mm_add_epi32(_mm256_extracti128_si256(diffp1, 0), _mm256_extracti128_si256(diffp1, 1));
+				std::array<int32_t, 2> diffp1_sum;
+				_mm_storel_epi64(reinterpret_cast<__m128i*>(&diffp1_sum), diffp1_128);
+				diff.p[1] += diffp1_sum;
+#else
 				for (int i = 0; i < pos.nlist(); ++i) {
 					const int k1 = list1[i];
 					const auto* pkppw = ppkppw[k1];
@@ -162,6 +239,7 @@ namespace {
 					diff.p[2][0] -= Evaluater::KKP[inverse(sq_wk)][inverse(sq_bk)][k1][0];
 					diff.p[2][1] += Evaluater::KKP[inverse(sq_wk)][inverse(sq_bk)][k1][1];
 				}
+#endif
 
 				if (pos.cl().size == 2) {
 					const int listIndex_cap = pos.cl().listindex[1];
@@ -176,6 +254,48 @@ namespace {
 				const int* list0 = pos.plist0();
 				diff.p[0][0] = 0;
 				diff.p[0][1] = 0;
+
+#if defined USE_AVX2_EVAL
+				__m256i zero = _mm256_setzero_si256();
+				__m256i diffp0 = zero;
+				#pragma unroll
+				for (int i = 0; i < pos.nlist(); ++i)
+				{
+					const int k0 = list0[i];
+					const auto* pkppb = ppkppb[k0];
+					diff.p[2] += Evaluater::KKP[sq_bk][sq_wk][k0];
+					int j = 0;
+					for (; j + 8 < i; j += 8)
+					{
+						__m256i indexes = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&list0[j]));
+						__m256i w = _mm256_i32gather_epi32(reinterpret_cast<const int*>(pkppb), indexes, 4);
+						__m256i wlo = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w, 0));
+						diffp0 = _mm256_add_epi32(diffp0, wlo);
+						__m256i whi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w, 1));
+						diffp0 = _mm256_add_epi32(diffp0, whi);
+					}
+
+					for (; j + 4 < i; j += 4)
+					{
+						__m128i indexes = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&list0[j]));
+						__m128i w = _mm_i32gather_epi32(reinterpret_cast<const int*>(pkppb), indexes, 4);
+						__m256i wlo = _mm256_cvtepi16_epi32(w);
+						diffp0 = _mm256_add_epi32(diffp0, wlo);
+					}
+
+					for (; j < i; ++j)
+					{
+						const int l0 = list0[j];
+						diff.p[0] += pkppb[l0];
+					}
+				}
+
+				diffp0 = _mm256_add_epi32(diffp0, _mm256_srli_si256(diffp0, 8));
+				__m128i diffp0_128 = _mm_add_epi32(_mm256_extracti128_si256(diffp0, 0), _mm256_extracti128_si256(diffp0, 1));
+				std::array<int32_t, 2> diffp0_sum;
+				_mm_storel_epi64(reinterpret_cast<__m128i*>(&diffp0_sum), diffp0_128);
+				diff.p[0] += diffp0_sum;
+#else
 				for (int i = 0; i < pos.nlist(); ++i) {
 					const int k0 = list0[i];
 					const auto* pkppb = ppkppb[k0];
@@ -185,6 +305,7 @@ namespace {
 					}
 					diff.p[2] += Evaluater::KKP[sq_bk][sq_wk][k0];
 				}
+#endif
 
 				if (pos.cl().size == 2) {
 					const int listIndex_cap = pos.cl().listindex[1];
@@ -197,6 +318,9 @@ namespace {
 			ss->staticEvalRaw = diff;
 		}
 		else {
+#if defined USE_AVX2_EVAL
+			pos.plist0()[38] = pos.plist0()[39] = pos.plist1()[38] = pos.plist1()[39] = 0;
+#endif
 			const int listIndex = pos.cl().listindex[0];
 			auto diff = doapc(pos, pos.cl().clistpair[0].newlist);
 			if (pos.cl().size == 1) {

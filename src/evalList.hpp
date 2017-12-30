@@ -7,7 +7,7 @@
 class Position;
 
 struct EvalList {
-	static const int ListSize = 38;
+	static const int ListSize = 40;
 
 	int list0[ListSize];
 	int list1[ListSize];
