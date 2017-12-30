@@ -4,7 +4,11 @@ echo "testing started"
 pwd
 
 echo -n "wget apery_sdt5.zip .. "
-wget -q https://github.com/HiraokaTakuya/apery/releases/download/SDT5/apery_sdt5.zip -O apery_sdt5.zip
+wget --load-cookies /tmp/cookies.txt \
+  `wget --keep-session-cookies --save-cookies=/tmp/cookies.txt \
+      'https://drive.google.com/uc?id=1tH8IOvjCKBi9IghZpbwGDcXyj3GDva8P' -q -O - \
+          | perl -nle 'if($_=~/download-link.*?href="(.*?)"/i){$str=$1;$str=~s/&amp;/&/g;print "https://drive.google.com$str";}'` \
+                -q -O apery_sdt5.zip
 if [ $? != 0 ]; then
   echo "testing failed(wget)"
   exit 1
@@ -18,7 +22,7 @@ if [ $? != 0 ]; then
 fi
 
 cp ../build/visualc14/silent_majority/benchmark.sfen .
-mv apery_sdt5/bin/20171106 20161007
+mv apery_sdt5_eval_twig_format 20161007
 
 echo "loading eval.bin.."
 cat 20161007/*.bin > /dev/null 2>&1
