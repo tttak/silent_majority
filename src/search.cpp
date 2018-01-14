@@ -37,7 +37,8 @@ namespace {
 
 	const Score Tempo = Score(20); // Must be visible to search
     const int razorMargin[] = { 0, 570, 603, 554 };
-    inline Score futilityMargin(const Depth d) { return Score(150 * d / OnePly);}
+    inline Score futilityMargin(const Depth d) { return Score(150 * d / OnePly);} // PARAM_FUTILITY_MARGIN_ALPHA 150 -> 147 -> 150
+    //inline Score futilityMargin(const Depth d) { return Score(170 * d / OnePly);} // Yomita
 
     int FutilityMoveCounts[2][16]; // [improving][depth]
 	int Reductions[2][2][64][64]; // [pv][improving][depth][moveNumber]
@@ -319,6 +320,7 @@ void Search::init() {
           for (int mc = 1; mc < 64; ++mc)
           {
               double r = log(d) * log(mc) / 1.95;
+              //double r = log(d) * log(mc) / 135 / 256; // PARAM_REDUCTION_ALPHA
 
               Reductions[NonPV][imp][d][mc] = int(std::round(r));
               Reductions[PV][imp][d][mc] = std::max(Reductions[NonPV][imp][d][mc] - 1, 0);
@@ -629,7 +631,7 @@ void Thread::search() {
 			// aspiration search
 			// alpha, beta をある程度絞ることで、探索効率を上げる。
 			if (rootDepth >= 5 * OnePly) {
-				delta = static_cast<Score>(18);
+				delta = static_cast<Score>(18); // PARAM_ASPIRATION_SEARCH_DELTA 18 -> 16 -> 18
 				alpha = std::max(rootMoves[pvIdx].previousScore - delta, -ScoreInfinite);
 				beta  = std::min(rootMoves[pvIdx].previousScore + delta,  ScoreInfinite);
 			}
@@ -806,7 +808,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	Depth extension, newDepth;
 	Score bestScore, score, ttScore, eval;
     bool ttHit, inCheck, givesCheck, singularExtensionNode, improving;
-	bool captureOrPawnPromotion, doFullDepthSearch, moveCountPruning, skipQuiets;
+	bool captureOrPawnPromotion, doFullDepthSearch, moveCountPruning, skipQuiets, ttCapture, pvExact;
     Piece movedPiece;
 	int moveCount, quietCount;
 	Square prevSq;
@@ -910,7 +912,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	}
 
 #if 1
-	if (pos.gamePly() > 200 && nyugyoku(pos)) {
+	if (pos.gamePly() > 210 && nyugyoku(pos)) {
         bestScore = mateIn(ss->ply);
         tte->save(posKey, scoreToTT(bestScore, ss->ply), BoundExact, DepthMax - OnePly,
                   Move::moveNone(), ScoreNone, TT.generation());
@@ -974,7 +976,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// step7
 	// Futility pruning: child node (skipped when in check)
 	if (!rootNode
-		&& depth < 7 * OnePly
+		&& depth < 9 * OnePly // PARAM_FUTILITY_RETURN_DEPTH 7 -> 9
 		&& eval - futilityMargin(depth) >= beta
 		&& eval < ScoreKnownWin)
 	{
@@ -985,11 +987,13 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// null move
 	if (!PvNode
 		&& eval >= beta
-        && (ss->staticEval >= beta - 35 * (depth / OnePly - 6) || depth >= 13 * OnePly))
+        && (ss->staticEval >= beta - 35 * (depth / OnePly - 6) || depth >= 13 * OnePly)) // PARAM_NULL_MOVE_MARGIN 35 -> 31 -> 35
 	{
         assert(eval - beta >= 0);
-        
-        Depth R = ((823 + 67 * depth / OnePly) / 256 + std::min(int(eval - beta) / PawnScore, 3)) * OnePly;
+
+        Depth R = ((823 // PARAM_NULL_MOVE_DYNAMIC_ALPHA 823 -> 818 -> 823
+					+ 67 // PARAM_NULL_MOVE_DYNAMIC_BETA 67 -> 67
+					* depth / OnePly) / 256 + std::min(int(eval - beta) / PawnScore, 3)) * OnePly;
 
         ss->currentMove = Move::moveNull();
         ss->counterMoves = &thisThread->counterMoveHistory[Empty][0];
@@ -1004,7 +1008,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 			if (nullScore >= ScoreMateInMaxPly)
 				nullScore = beta;
 
-			if (depth < 12 * OnePly && abs(beta) < ScoreKnownWin)
+			if (depth < 12 * OnePly && abs(beta) < ScoreKnownWin) // PARAM_NULL_MOVE_RETURN_DEPTH 12 -> 14 -> 12
 				return nullScore;
 
 			assert(Depth0 < depth - R);
@@ -1019,10 +1023,10 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// step9
 	// probcut
 	if (!PvNode
-		&& depth >= 5 * OnePly
+		&& depth >= 5 * OnePly // PARAM_PROBCUT_DEPTH 5 -> 5
 		&& abs(beta) < ScoreMateInMaxPly)
 	{
-		const Score rbeta = std::min(beta + 200, ScoreInfinite);
+		const Score rbeta = std::min(beta + 200, ScoreInfinite); // PARAM_PROBCUT_MARGIN 200 -> 194 -> 200
 		const Depth rdepth = depth - 4 * OnePly;
         const Score threshold = rbeta - ss->staticEval;
 
@@ -1049,7 +1053,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// internal iterative deepening
 	if (depth >= 6 * OnePly
 		&& !ttMove
-		&& (PvNode || (ss->staticEval + 256 >= beta)))
+		&& (PvNode || (ss->staticEval + 256 >= beta))) // PARAM_IID_MARGIN_ALPHA 256 -> 251 -> 256
 	{
         Depth d = (3 * depth / (4 * OnePly) - 2) * OnePly;
 		search<NT>(pos, ss, alpha, beta, d, cutNode, true);
@@ -1071,13 +1075,15 @@ moves_loop:
                ||(ss-2)->staticEval == ScoreNone;
 
 	singularExtensionNode = (   !rootNode
-							 &&  depth >= 8 * OnePly
+							 &&  depth >= 7 * OnePly // PARAM_SINGULAR_EXTENSION_DEPTH 8 -> 7
 							 &&  ttMove != MOVE_NONE
 							 &&  ttScore != ScoreNone
 							 && !excludedMove
 							 && (tte->bound() & BoundLower)
 							 &&  tte->depth() >= depth - 3 * OnePly);
     skipQuiets = false;
+	ttCapture = false;
+	pvExact = PvNode && ttHit && tte->bound() == BoundExact;
 
 	// step11
 	// Loop through moves
@@ -1085,13 +1091,9 @@ moves_loop:
 		if (move == excludedMove)
 			continue;
 
-		if (rootNode
-			&& std::find(thisThread->rootMoves.begin() + thisThread->pvIdx,
-              thisThread->rootMoves.end(),
-						 move) == thisThread->rootMoves.end())
-		{
+		if (rootNode && !std::count(thisThread->rootMoves.begin() + thisThread->pvIdx,
+									thisThread->rootMoves.end(), move))
 			continue;
-		}
 
 		ss->moveCount = ++moveCount;
 
@@ -1107,21 +1109,24 @@ moves_loop:
             (ss+1)->pv = nullptr;
 
 		extension = Depth0;
-		captureOrPawnPromotion = move.isCaptureOrPawnPromotion();
+		captureOrPawnPromotion = move.isCaptureOrPromotion();
         movedPiece = pos.movedPiece(move);
 		givesCheck = pos.moveGivesCheck(move, ci);
 
-		moveCountPruning = (depth < 16 * OnePly
+		moveCountPruning = (depth < 16 * OnePly // PARAM_PRUNING_BY_MOVE_COUNT_DEPTH 16 -> 16
 							&& moveCount >= FutilityMoveCounts[improving][depth / OnePly]);
 
 		// step12
+
 		// Singular and Gives Check Extensions
         if (singularExtensionNode
             && move == ttMove
             && pos.pseudoLegalMoveIsLegal<false, false>(move, ci.pinned))
         {
             const Score rBeta = std::max(ttScore - 2 * depth / OnePly, -ScoreMate0Ply);
+            //const Score rBeta = std::max(ttScore - 194 * depth / (64 / OnePly), -ScoreMate0Ply); // PARAM_SINGULAR_MARGIN
             Depth d = (depth / (2 * OnePly)) * OnePly;
+            //Depth d = (depth * 20 / (32 * OnePly)) * OnePly; // PARAM_SINGULAR_SEARCH_DEPTH_ALPHA
             ss->excludedMove = move;
             score = search<NonPV>(pos, ss, rBeta-1, rBeta, d, cutNode, true);
             ss->excludedMove = Move::moveNone();
@@ -1129,11 +1134,17 @@ moves_loop:
             if (score < rBeta) {
                 extension = OnePly;
             }
-        } 
+        }
+#if 0	// 王手延長 Yomita
+        // 駒損しない王手と有効そうな王手は延長する。
+        else if (givesCheck && !moveCountPruning)
+            extension = pos.seeGe(move, ScoreZero) ? OnePly : OnePly / 2;
+#else
         else if (givesCheck
                  && !moveCountPruning
                  &&  pos.seeGe(move, ScoreZero))
             extension = OnePly;
+#endif
 
 		newDepth = depth - OnePly + extension;
 
@@ -1147,7 +1158,7 @@ moves_loop:
 			{
 				// move count based pruning
                 if (moveCountPruning) {
-#if 0
+#if 1 // どうすっか
                     skipQuiets = true; // 要検討
 #endif
                     continue;
@@ -1156,25 +1167,31 @@ moves_loop:
 				int lmrDepth = std::max(newDepth - reduction<PvNode>(improving, depth, moveCount), Depth0) / OnePly;
 
 				// Countermoves based pruning
-				if (lmrDepth < 3
+				if (lmrDepth < 9 // PARAM_PRUNING_BY_HISTORY_DEPTH 3 -> 9
 					&& (cmh[movedPiece][move.to()] < CounterMovePruneThreshold)
 					&& (fmh[movedPiece][move.to()] < CounterMovePruneThreshold))
 					continue;
 
 				// score based pruning
-				if (lmrDepth < 7
+				if (lmrDepth < 12 // PARAM_FUTILITY_AT_PARENT_NODE_DEPTH 7 -> 12
 					&& !inCheck
-					&& ss->staticEval + 256 + 200 * lmrDepth <= alpha)
+					&& ss->staticEval + 256 // PARAM_FUTILITY_AT_PARENT_NODE_MARGIN1 256 -> 256
+					+ 147 * lmrDepth <= alpha) // PARAM_FUTILITY_MARGIN_BETA 200 -> 147
 					continue;
 
-				if (lmrDepth < 8
-					&& !pos.seeGe(move, Score(-35 * lmrDepth * lmrDepth)))
+				if (!pos.seeGe(move, Score(-40 * lmrDepth * lmrDepth))) // PARAM_FUTILITY_AT_PARENT_NODE_GAMMA1 35 -> 40
 					continue;
 			}
+#if 0
 			else if (depth < 7 * OnePly
 					 && !extension
 					 && !pos.seeGe(move, Score(-CapturePawnScore * int(depth / OnePly))))
 				continue;
+#else // PARAM_FUTILITY_AT_PARENT_NODE_GAMMA2
+			else if (!extension
+				&& !pos.seeGe(move, Score(-51 * (depth / OnePly) * (depth / OnePly))))
+				continue;
+#endif
 		}
 
 
@@ -1186,6 +1203,10 @@ moves_loop:
 
 		ss->currentMove = move;
         ss->counterMoves = &thisThread->counterMoveHistory[movedPiece][move.to()];
+
+		// ttCaptureであるかの判定
+		if (move == ttMove && captureOrPawnPromotion)
+			ttCapture = true;
 
 		// step14
 		pos.doMove(move, st, ci, givesCheck);
@@ -1202,6 +1223,14 @@ moves_loop:
 			if (captureOrPawnPromotion)
 				r -= r ? OnePly : Depth0;
 			else {
+				if ((ss-1)->moveCount > 15)
+					r -= OnePly;
+
+				if (pvExact)
+					r -= OnePly;
+
+				if (ttCapture)
+					r += OnePly;
 
 				// Increase reduction for cut nodes and moves with a bad history
 				if (cutNode)
@@ -1220,12 +1249,12 @@ moves_loop:
 					+ cmh[movedPiece][move.to()]
 					+ fmh[movedPiece][move.to()]
 					+ fm2[movedPiece][move.to()]
-					- 4000; // Correction factor
+					- 4000; // Correction factor // PARAM_REDUCTION_BY_HISTORY 4000 -> 4000
 
 				// Decrease/increase reduction by comparing opponent's stat score
 				if (ss->history > 0 && (ss-1)->history < 0)
 					 r -= OnePly;
-				
+
 				else if (ss->history < 0 && (ss-1)->history > 0)
 					 r += OnePly;
 
@@ -1434,7 +1463,7 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 		if (PVNode && bestScore > alpha)
 			alpha = bestScore;
 
-		futilityBase = bestScore + 128; // todo: 128 より大きくて良いと思う。
+		futilityBase = bestScore + 145; // PARAM_FUTILITY_MARGIN_QUIET 128 -> 145
 	}
 
 	evaluate(pos, ss);
