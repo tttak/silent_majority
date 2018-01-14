@@ -10,6 +10,10 @@ std::array<s32, 2> Evaluater::KKP[SquareNum][SquareNum][fe_end];
 std::array<s32, 2> Evaluater::KK[SquareNum][SquareNum];
 
 EvaluateHashTable g_evalTable;
+void prefetch_evalhash(const Key key)
+{
+	prefetch(g_evalTable[key >> 1]);
+}
 
 const int kppArray[31] = {
 	0,        f_pawn,   f_lance,  f_knight,

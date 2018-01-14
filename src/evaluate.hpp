@@ -1175,4 +1175,6 @@ extern EvaluateHashTable g_evalTable;
 Score evaluateUnUseDiff(const Position& pos);
 //Score evaluate(Position& pos, Search::Stack* ss);
 
+void prefetch_evalhash(const Key key);
+
 #endif // #ifndef APERY_EVALUATE_HPP
