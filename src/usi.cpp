@@ -97,7 +97,7 @@ void init(OptionsMap& o) {
 	o["PvInterval"]    = Option(100, 0, 10000);
 	o["Contempt"]      = Option(0, -100, 100);
 #ifdef RESIGN
-    o["Resign"]        = Option(2000, 0, 10000);
+    o["Resign"]        = Option(99999, 0, 99999);
 #endif
 }
 

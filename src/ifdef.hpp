@@ -90,6 +90,6 @@
 #define USE_extractPVFromTT
 #endif
 
-//#define RESIGN
+#define RESIGN
 
 #endif // #ifndef APERY_IFDEF_HPP
