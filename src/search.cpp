@@ -1499,8 +1499,6 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 			&& futilityBase > -ScoreKnownWin)
 		{
 			futilityScore = futilityBase + Position::capturePieceScore(pos.piece(move.to()));
-			if (move.isPromotion())
-				futilityScore += Position::promotePieceScore(move.pieceTypeFrom());
 
 			if (futilityScore <= alpha) {
 				bestScore = std::max(bestScore, futilityScore);
