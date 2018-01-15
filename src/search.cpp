@@ -994,7 +994,8 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// null move
 	if (!PvNode
 		&& eval >= beta
-        && (ss->staticEval >= beta - PARAM_NULL_MOVE_MARGIN * (depth / OnePly - 6) || depth >= 13 * OnePly))
+        && (ss->staticEval >= beta - PARAM_NULL_MOVE_MARGIN * (depth / OnePly - 6) || depth >= 13 * OnePly)
+        && (ss->ply >= thisThread->nmp_ply || ss->ply % 2 == thisThread->pair))
 	{
         assert(eval - beta >= 0);
 
@@ -1017,9 +1018,18 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 			if (depth < 12 * OnePly && abs(beta) < ScoreKnownWin) // PARAM_NULL_MOVE_RETURN_DEPTH 12 -> 14 -> 12
 				return nullScore;
 
+			R += OnePly;
+			int nmp_ply = thisThread->nmp_ply;
+			int pair = thisThread->pair;
+			thisThread->nmp_ply = ss->ply + 3 * (depth-R) / 4;
+			thisThread->pair = (ss->ply % 2) == 0;
+
 			assert(Depth0 < depth - R);
 			const Score s = (depth-R < OnePly ? qsearch<NonPV, false>(pos, ss, beta-1, beta)
                                               : search<NonPV>(pos, ss, beta-1, beta, depth-R, false, true));
+
+			thisThread->pair = pair;
+			thisThread->nmp_ply = nmp_ply;
 
 			if (s >= beta)
 				return nullScore;
