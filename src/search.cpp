@@ -37,7 +37,8 @@ namespace {
 
 	const Score Tempo = Score(20); // Must be visible to search
     const int razorMargin[] = { 0, 570, 603, 554 };
-    inline Score futilityMargin(const Depth d) { return Score(150 * d / OnePly);} // PARAM_FUTILITY_MARGIN_ALPHA 150 -> 147 -> 150
+    inline Score futilityMargin(const Depth d, double p) { return Score((int)(50 + 250 * p) * (d / OnePly));}
+    //inline Score futilityMargin(const Depth d) { return Score(150 * d / OnePly);} // PARAM_FUTILITY_MARGIN_ALPHA 150 -> 147 -> 150
     //inline Score futilityMargin(const Depth d) { return Score(170 * d / OnePly);} // Yomita
 
     int FutilityMoveCounts[2][16]; // [improving][depth]
@@ -932,6 +933,10 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	}
 #endif
 
+	double rate[2];
+	Progress::evaluate(pos, ss, rate);
+	double progress = rate[0], progress_nyugyoku = rate[1];
+
 	// step5
 	// evaluate the position statically
 	eval = ss->staticEval = evaluate(pos, ss); // Bonanza の差分評価の為、evaluate() を常に呼ぶ。
@@ -977,8 +982,8 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// Futility pruning: child node (skipped when in check)
 	if (!rootNode
 		&& depth < 9 * OnePly // PARAM_FUTILITY_RETURN_DEPTH 7 -> 9
-		&& eval - futilityMargin(depth) >= beta
-		&& eval < ScoreKnownWin)
+		&& eval < ScoreKnownWin
+		&& eval - futilityMargin(depth, progress) >= beta)
 	{
 		return eval;
 	}
@@ -1620,4 +1625,364 @@ void RootMove::extractPVFromTT(Position& pos) {
 	while (ply)
 		pos.undoMove(pv[--ply]);
 }
+
+namespace Progress
+{
+    int32_t PROGRESS[SquareNum][fe_end];
+
+    // 進行度ファイルの読み込み
+    void load(const std::string& dirName)
+    {
+        std::string p = (Evaluater::addSlashIfNone(dirName) + "progress.bin").c_str();
+        std::ifstream ifs(p, std::ios::binary);
+        if (!ifs)
+            std::cout << "info string can't open " << p << "." << std::endl;
+
+        else
+        {
+            ifs.read(reinterpret_cast<char*>(PROGRESS), sizeof(PROGRESS));
+            std::cout << "info string open success " << p << "." << std::endl;
+        }
+    }
+
+    // 進行度ファイルの保存
+    void save(std::string dirName)
+    {
+        std::string p = (Evaluater::addSlashIfNone(dirName) + "progress.bin").c_str();
+        std::ofstream ofs(p, std::ios::binary);
+        if (!ofs.write(reinterpret_cast<char*>(PROGRESS), sizeof(PROGRESS)))
+            std::cout << "can't save progress." << std::endl;
+		else {
+            std::cout << "info string save success " << p << "." << std::endl;
+		}
+    }
+
+    //double computeAll(const Position& pos, Search::Stack* ss)
+    void computeAll(const Position& pos, Search::Stack* ss, double rate[2])
+    {
+        auto sq_bk0 = pos.kingSquare(Black);
+        auto sq_wk1 = inverse( pos.kingSquare(White));
+        auto list_fb =  pos.cplist0();
+        auto list_fw =  pos.cplist1();
+        int64_t bkp = 0, wkp = 0;
+
+        for (int i = 0; i < pos.nlist(); i++)
+        {
+			if(list_fb[i] > fe_end || list_fw[i] > fe_end) continue;
+            bkp += PROGRESS[sq_bk0][list_fb[i]];
+            wkp += PROGRESS[sq_wk1][list_fw[i]];
+        }
+		if(ss != NULL){
+        	ss->progress.set(bkp, wkp, pos.getKey());
+			rate[0] = ss->progress.rate();
+		} else {
+			ProgressSum sum;
+        	sum.set(bkp, wkp, pos.getKey());
+			rate[0] = sum.rate();
+		}
+		return;
+        //return ss->progress.rate();
+    }
+
+    void computeDiff(const Position& pos, Search::Stack* ss, double rate[2])
+    {
+        auto now = ss;
+
+        if (!now->progress.isNone(pos.getKey())){
+			rate[0] = now->progress.rate();
+			return;
+		}
+
+        auto prev = (ss-1);
+
+        if (prev->progress.isNone(0)){
+            computeAll(pos, ss, rate);
+            return;
+		}
+
+        auto sq_bk0 = pos.kingSquare(Black);
+        auto sq_wk1 = inverse( pos.kingSquare(White));
+        auto list_fb =  pos.cplist0();
+        auto list_fw =  pos.cplist1();
+        auto prog = prev->progress;
+
+		const Move lastMove = (ss-1)->currentMove;
+
+		if (lastMove.pieceTypeFrom() == King)
+        {
+			if (pos.turn() == Black)
+            {
+                prog.bkp = 0;
+
+                for (int i = 0; i < pos.nlist(); i++){
+                    prog.bkp += PROGRESS[sq_bk0][list_fb[i]];
+				}
+
+				if (pos.cl().size == 2) 
+                {
+                    prog.wkp -= PROGRESS[sq_wk1][pos.cl().clistpair[1].oldlist[1]];
+                    prog.wkp += PROGRESS[sq_wk1][pos.cl().clistpair[1].newlist[1]];
+                }
+            }
+            else
+            {
+                prog.wkp = 0;
+
+                for (int i = 0; i < pos.nlist(); i++){
+                    prog.wkp += PROGRESS[sq_wk1][list_fw[i]];
+				}
+
+				if (pos.cl().size == 2) 
+                {
+                    prog.bkp -= PROGRESS[sq_bk0][pos.cl().clistpair[1].oldlist[0]];
+                    prog.bkp += PROGRESS[sq_bk0][pos.cl().clistpair[1].newlist[0]];
+                }
+            }
+        }
+        else
+        {
+			// TODO: 妙なチェックをどうにかする
+#define ADD_BWKP(W0,W1,W2,W3) \
+			if(W0 < fe_end && W0 >= 0 && W1 < fe_end && W1 >= 0 \
+			&& W2 < fe_end && W2 >= 0 && W3 < fe_end && W3 >= 0) { \
+        		prog.bkp -= PROGRESS[sq_bk0][W0]; \
+        		prog.wkp -= PROGRESS[sq_wk1][W1]; \
+        		prog.bkp += PROGRESS[sq_bk0][W2]; \
+        		prog.wkp += PROGRESS[sq_wk1][W3]; \
+			}
+
+			if (pos.cl().size == 1) 
+            {
+                //ADD_BWKP(dp.pre_piece[0].fb, dp.pre_piece[0].fw, dp.now_piece[0].fb, dp.now_piece[0].fw);
+                ADD_BWKP(
+                	pos.cl().clistpair[0].oldlist[0],// dp.pre_piece[0].fb,
+					pos.cl().clistpair[0].oldlist[1],// dp.pre_piece[0].fw,
+					pos.cl().clistpair[0].newlist[0],// dp.now_piece[0].fb,
+					pos.cl().clistpair[0].newlist[1] // dp.now_piece[0].fw
+				);
+            }
+            else if (pos.cl().size == 2) 
+            {
+                //ADD_BWKP(dp.pre_piece[0].fb, dp.pre_piece[0].fw, dp.now_piece[0].fb, dp.now_piece[0].fw);
+                ADD_BWKP(
+					pos.cl().clistpair[0].oldlist[0],// dp.pre_piece[0].fb,
+					pos.cl().clistpair[0].oldlist[1],// dp.pre_piece[0].fw,
+					pos.cl().clistpair[0].newlist[0],// dp.now_piece[0].fb,
+					pos.cl().clistpair[0].newlist[1] // dp.now_piece[0].fw
+				);
+                //ADD_BWKP(dp.pre_piece[1].fb, dp.pre_piece[1].fw, dp.now_piece[1].fb, dp.now_piece[1].fw);
+                ADD_BWKP(
+					pos.cl().clistpair[1].oldlist[0],// dp.pre_piece[1].fb,
+					pos.cl().clistpair[1].oldlist[1],// dp.pre_piece[1].fw,
+					pos.cl().clistpair[1].newlist[0],// dp.now_piece[1].fb,
+					pos.cl().clistpair[1].newlist[1] // dp.now_piece[1].fw
+				);
+            }
+        }
+		prog.key_ = pos.getKey();
+
+        now->progress = prog;
+		rate[0] = now->progress.rate();
+        return;
+    }
+
+	// いろんな進行度(千日手とな入玉とか)を返せればいいな、と。。(表現力の問題で駄目っぽいけど)
+    void evaluate(const Position& pos, Search::Stack* ss, double rate[2])
+    {
+        computeDiff(pos, ss, rate);
+        return;
+    }
+
+    void evaluate(const Position& pos, double rate[2])
+    {
+    	computeAll(pos, NULL, rate);
+        return;
+    }
+
+	inline double sigmoid(double x) { return 1.0 / (1.0 + std::exp(-x)); }
+
+    double ProgressSum::rate() const
+    {
+        double rtn = sigmoid(double(bkp + wkp) / double(1 << 16));
+        return rtn;
+    }
+
+#ifdef PROGRESS_LEARN
+
+#define eta 256.0
+    struct Game
+    {
+        short ply;
+        Move move[512];
+    };
+
+    struct Weight
+    {
+        double w, g, g2;
+        void addGrad(double delta) { g += delta; }
+        bool update()
+        {
+            if (g == 0) return false;
+            g2 += g * g;
+            double e = std::sqrt(g2);
+            if (e != 0) w = w - g * eta / e;
+            g = 0;
+            return true;
+        }
+    };
+
+    typedef std::vector<Game> GameVector;
+    std::vector<GameVector> games;
+    GameVector errors;
+    uint64_t max_loop = 128;
+    Weight prog_w[SquareNum][fe_end];
+
+    void initGrad()
+    {
+        memset(prog_w, 0, sizeof(prog_w));
+        for (int sq = 0; sq < SquareNum; sq++)
+            for (int i = 0; i < (int)fe_end; ++i)
+                prog_w[sq][i].w = Progress::PROGRESS[sq][i];
+    }
+
+    void addGrad(Position& pos, double delta_grad)
+    {
+        auto f = delta_grad;
+        auto sq_bk0 = pos.kingSquare(Black);
+        auto sq_wk1 = inverse(pos.kingSquare(White));
+        auto list_fb =  pos.cplist0();
+        auto list_fw =  pos.cplist1();
+
+        for (int i = 0; i < pos.nlist(); i++)
+        {
+			if(list_fb[i] > fe_end || list_fw[i] > fe_end) continue;
+
+            prog_w[sq_bk0][list_fb[i]].addGrad(f);
+            prog_w[sq_wk1][list_fw[i]].addGrad(f);
+        }
+    }
+
+    void updateWeights()
+    {
+        for (int sq = 0; sq < SquareNum; sq++){
+            for (int i = 0; i < (int)fe_end; ++i)
+            {
+                auto& w = prog_w[sq][i];
+
+                if (w.update())
+                    Progress::PROGRESS[sq][i] = static_cast<int32_t>(w.w);
+            }
+        }
+    }
+
+    double calcGrad(double teacher, double now)
+    {
+        //return now - teacher;
+		double p = sigmoid(teacher/600);
+		double q = sigmoid(now/600);
+		return q - p;
+    }
+
+   	void search(std::string dirName)
+    {
+    	const int MAX_PLY = 256;
+    	StateInfo st[MAX_PLY + 64];
+    	Position pos;
+        const int interval = 7000000;
+        //const int interval = 10000000;
+        for (uint64_t loop = 0; loop < max_loop; loop++)
+        {
+        	for (auto game : games[0]) // single thread でいいや。
+        	{
+				pos.set(DefaultStartPositionSFEN, NULL);
+
+				for (int i = 0; i < game.ply - 1; i++) {
+					Move m = game.move[i];
+            		pos.doMove(m, st[i]);
+
+					auto t = (double)(i + 1) / (double)game.ply;
+					double rate[2];
+					Progress::evaluate(pos, rate);
+					auto p = rate[0];
+            		auto delta = calcGrad(t, p);
+            		addGrad(pos, delta);
+            		static int j = 0;
+            		if (++j % interval == 0) {
+						std::cerr << "now = " << std::fixed  << std::setprecision(3) << p * 100 << "%"
+            		    << " teacher = " << std::fixed  << std::setprecision(3) << t * 100 << "%" << std::endl;
+        				updateWeights(); //とりあえず
+            		}
+        		}
+        	}
+		}
+
+        updateWeights();
+        Progress::save(dirName);
+		std::cerr << "learn_progress end." << std::endl;
+    }
+
+	int readAllLines(std::string filename, std::vector<std::string>& lines)
+	{
+	    std::fstream fs(filename, std::ios::in);
+	    if (fs.fail())
+	        return 1; // 読み込み失敗
+
+	    while (!fs.fail() && !fs.eof())
+	    {
+	        std::string line;
+	        getline(fs, line);
+	        if (line.length())
+	            lines.push_back(line);
+	    }
+	    fs.close();
+	    return 0;
+	}
+
+    void learnProgress(Position& pos, std::string dirName)
+    {
+        std::string token, file_name = "learn_progress.txt";
+
+        // 勾配配列の初期化
+        //Progress::load();
+        initGrad();
+		load(dirName);
+
+        std::vector<std::string> kifus;
+        readAllLines(file_name, kifus);
+
+        int max_ply;
+        StateInfo st[512];
+        int kifu_num = 0;
+        const int kifu_size = kifus.size();
+
+		games.push_back(GameVector());
+
+        // どうせ学習棋譜は少ないのであらかじめすべてメモリに読み込んでおく。
+        for (auto it = kifus.begin(); it < kifus.end(); ++it)
+        {
+            std::istringstream iss(*it++);
+
+            Game g;
+			pos.set(DefaultStartPositionSFEN, NULL);
+
+       		iss >> std::skipws >> token; // いっこめが ply
+            g.ply = max_ply = atoi(token.c_str());
+
+            // ゲームの進行
+            for (int i = 0; i < max_ply - 1; i++)
+            {
+                token.clear();
+                iss >> std::skipws >> token;
+                Move m = csaToMove(pos, token.substr(1));
+                g.move[i] = m;
+                pos.doMove(m, st[i]);
+            }
+
+            games[0].push_back(g);
+        }
+		search(dirName);
+    }
+#endif
+}
+
 #endif

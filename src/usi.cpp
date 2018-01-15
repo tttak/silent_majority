@@ -464,10 +464,21 @@ void USI::loop(int argc, char* argv[]) {
 		else if (token == "go"       ) go(pos, ssCmd);
 		else if (token == "isready") {
 			std::unique_ptr<Evaluater>(new Evaluater)->init(Options["Eval_Dir"], true);
+			Progress::load(Options["Eval_Dir"]);
 			SYNCCOUT << "readyok" << SYNCENDL;
 		}
 		else if (token == "position" ) setPosition(pos, ssCmd);
 		else if (token == "setoption") setOption(ssCmd);
+		else if (token == "prog") {
+			double rate[2];
+			Progress::evaluate(pos, rate);
+			SYNCCOUT << "prog " << fixed << std::setprecision(3) << rate[0] * 100 << "%" << SYNCENDL;
+		}
+#ifdef PROGRESS_LEARN
+		else if (token == "lprog") {
+			Progress::learnProgress(pos, Options["Eval_Dir"]);
+		}
+#endif
 #if defined LEARN
 		else if (token == "l"        ) {
 			auto learner = std::unique_ptr<Learner>(new Learner);
@@ -482,6 +493,7 @@ void USI::loop(int argc, char* argv[]) {
 		// 以下、デバッグ用
 		else if (token == "bench") {
 			std::unique_ptr<Evaluater>(new Evaluater)->init(Options["Eval_Dir"], true);	
+			Progress::load(Options["Eval_Dir"]);
 			benchmark(pos, ssCmd);
 		}
 		else if (token == "key"      ) SYNCCOUT << pos.getKey() << SYNCENDL;

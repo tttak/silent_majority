@@ -23,6 +23,7 @@ fi
 
 cp ../build/visualc14/silent_majority/benchmark.sfen .
 mv apery_sdt5_eval_twig_format 20161007
+mv progress.bin.sample 20161007/progress.bin
 
 echo "loading eval.bin.."
 cat 20161007/*.bin > /dev/null 2>&1

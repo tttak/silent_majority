@@ -9,6 +9,22 @@
 template<typename T> struct Stats;
 typedef Stats<int> CounterMoveStats;
 
+namespace Progress
+{
+    struct ProgressSum
+    {
+        ProgressSum() {};
+        void set(int64_t b, int64_t w, Key key) { bkp = b; wkp = w; key_ = key;}
+        double rate() const;
+        bool isNone(Key key) const {
+			if(key == 0) return ((bkp+wkp) == 0); // TODO..
+			return key_ != key;
+		}
+        int64_t bkp, wkp;
+		Key key_;
+    };
+}
+
 namespace Search {
 
 struct Stack {
@@ -24,6 +40,7 @@ struct Stack {
 	EvalSum staticEvalRaw; // 評価関数の差分計算用、値が入っていないときは [0] を ScoreNotEvaluated にしておく。
 						   // 常に Black 側から見た評価値を入れておく。
 						   // 0: 双玉に対する評価値, 1: 先手玉に対する評価値, 2: 後手玉に対する評価値
+	Progress::ProgressSum progress;
 };
 
 struct RootMove {
@@ -102,5 +119,13 @@ enum BishopInDangerFlag {
 	WhiteBishopInDangerIn38,
 	BishopInDangerFlagNum
 };
+
+namespace Progress
+{
+    void load(const std::string& dirName);
+    void evaluate(const Position& pos, Search::Stack* ss, double rate[2]);
+    void evaluate(const Position& pos, double rate[2]);
+    void computeAll(const Position& pos, Search::Stack* ss, double rate[2]);
+}
 
 #endif // #ifndef APERY_SEARCH_HPP
