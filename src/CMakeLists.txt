@@ -64,6 +64,7 @@ set(sources
 	score.hpp
 	search.cpp
 	search.hpp
+	search_params.hpp
 	square.cpp
 	square.hpp
 	thread.cpp

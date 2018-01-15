@@ -92,4 +92,6 @@
 
 #define RESIGN
 
+// #define PROGRESS_LEARN
+
 #endif // #ifndef APERY_IFDEF_HPP

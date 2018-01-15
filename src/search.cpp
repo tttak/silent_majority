@@ -9,6 +9,8 @@
 #include "timeManager.hpp"
 #include "book.hpp"
 
+#include "search_params.hpp"
+
 namespace Search {
 
 	SignalsType Signals;
@@ -992,12 +994,11 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// null move
 	if (!PvNode
 		&& eval >= beta
-        && (ss->staticEval >= beta - 35 * (depth / OnePly - 6) || depth >= 13 * OnePly)) // PARAM_NULL_MOVE_MARGIN 35 -> 31 -> 35
+        && (ss->staticEval >= beta - PARAM_NULL_MOVE_MARGIN * (depth / OnePly - 6) || depth >= 13 * OnePly))
 	{
         assert(eval - beta >= 0);
 
-        Depth R = ((823 // PARAM_NULL_MOVE_DYNAMIC_ALPHA 823 -> 818 -> 823
-					+ 67 // PARAM_NULL_MOVE_DYNAMIC_BETA 67 -> 67
+        Depth R = ((PARAM_NULL_MOVE_DYNAMIC_ALPHA + PARAM_NULL_MOVE_DYNAMIC_BETA
 					* depth / OnePly) / 256 + std::min(int(eval - beta) / PawnScore, 3)) * OnePly;
 
         ss->currentMove = Move::moveNull();
@@ -1028,10 +1029,10 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// step9
 	// probcut
 	if (!PvNode
-		&& depth >= 5 * OnePly // PARAM_PROBCUT_DEPTH 5 -> 5
+		&& depth >= PARAM_PROBCUT_DEPTH * OnePly
 		&& abs(beta) < ScoreMateInMaxPly)
 	{
-		const Score rbeta = std::min(beta + 200, ScoreInfinite); // PARAM_PROBCUT_MARGIN 200 -> 194 -> 200
+		const Score rbeta = std::min(beta + PARAM_PROBCUT_MARGIN, ScoreInfinite);
 		const Depth rdepth = depth - 4 * OnePly;
         const Score threshold = rbeta - ss->staticEval;
 
@@ -1058,7 +1059,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// internal iterative deepening
 	if (depth >= 6 * OnePly
 		&& !ttMove
-		&& (PvNode || (ss->staticEval + 256 >= beta))) // PARAM_IID_MARGIN_ALPHA 256 -> 251 -> 256
+		&& (PvNode || (ss->staticEval + PARAM_IID_MARGIN_ALPHA >= beta)))
 	{
         Depth d = (3 * depth / (4 * OnePly) - 2) * OnePly;
 		search<NT>(pos, ss, alpha, beta, d, cutNode, true);
@@ -1080,15 +1081,15 @@ moves_loop:
                ||(ss-2)->staticEval == ScoreNone;
 
 	singularExtensionNode = (   !rootNode
-							 &&  depth >= 7 * OnePly // PARAM_SINGULAR_EXTENSION_DEPTH 8 -> 7
+							 &&  depth >= PARAM_SINGULAR_EXTENSION_DEPTH * OnePly
 							 &&  ttMove != MOVE_NONE
 							 &&  ttScore != ScoreNone
 							 && !excludedMove
 							 && (tte->bound() & BoundLower)
 							 &&  tte->depth() >= depth - 3 * OnePly);
     skipQuiets = false;
-	ttCapture = false;
-	pvExact = PvNode && ttHit && tte->bound() == BoundExact;
+    ttCapture = false;
+    pvExact = PvNode && ttHit && tte->bound() == BoundExact;
 
 	// step11
 	// Loop through moves
@@ -1118,7 +1119,7 @@ moves_loop:
         movedPiece = pos.movedPiece(move);
 		givesCheck = pos.moveGivesCheck(move, ci);
 
-		moveCountPruning = (depth < 16 * OnePly // PARAM_PRUNING_BY_MOVE_COUNT_DEPTH 16 -> 16
+		moveCountPruning = (depth < PARAM_PRUNING_BY_MOVE_COUNT_DEPTH * OnePly
 							&& moveCount >= FutilityMoveCounts[improving][depth / OnePly]);
 
 		// step12
@@ -1172,19 +1173,19 @@ moves_loop:
 				int lmrDepth = std::max(newDepth - reduction<PvNode>(improving, depth, moveCount), Depth0) / OnePly;
 
 				// Countermoves based pruning
-				if (lmrDepth < 9 // PARAM_PRUNING_BY_HISTORY_DEPTH 3 -> 9
+				if (lmrDepth < PARAM_PRUNING_BY_HISTORY_DEPTH
 					&& (cmh[movedPiece][move.to()] < CounterMovePruneThreshold)
 					&& (fmh[movedPiece][move.to()] < CounterMovePruneThreshold))
 					continue;
 
 				// score based pruning
-				if (lmrDepth < 12 // PARAM_FUTILITY_AT_PARENT_NODE_DEPTH 7 -> 12
+				if (lmrDepth < PARAM_FUTILITY_AT_PARENT_NODE_DEPTH 
 					&& !inCheck
-					&& ss->staticEval + 256 // PARAM_FUTILITY_AT_PARENT_NODE_MARGIN1 256 -> 256
-					+ 147 * lmrDepth <= alpha) // PARAM_FUTILITY_MARGIN_BETA 200 -> 147
+					&& ss->staticEval + PARAM_FUTILITY_AT_PARENT_NODE_MARGIN1
+					+ PARAM_FUTILITY_MARGIN_BETA * lmrDepth <= alpha)
 					continue;
 
-				if (!pos.seeGe(move, Score(-40 * lmrDepth * lmrDepth))) // PARAM_FUTILITY_AT_PARENT_NODE_GAMMA1 35 -> 40
+				if (!pos.seeGe(move, Score(-PARAM_FUTILITY_AT_PARENT_NODE_GAMMA1 * lmrDepth * lmrDepth)))
 					continue;
 			}
 #if 0
@@ -1194,7 +1195,7 @@ moves_loop:
 				continue;
 #else // PARAM_FUTILITY_AT_PARENT_NODE_GAMMA2
 			else if (!extension
-				&& !pos.seeGe(move, Score(-51 * (depth / OnePly) * (depth / OnePly))))
+				&& !pos.seeGe(move, Score(-PARAM_FUTILITY_AT_PARENT_NODE_GAMMA2 * (depth / OnePly) * (depth / OnePly))))
 				continue;
 #endif
 		}
@@ -1254,7 +1255,7 @@ moves_loop:
 					+ cmh[movedPiece][move.to()]
 					+ fmh[movedPiece][move.to()]
 					+ fm2[movedPiece][move.to()]
-					- 4000; // Correction factor // PARAM_REDUCTION_BY_HISTORY 4000 -> 4000
+					- PARAM_REDUCTION_BY_HISTORY; // Correction factor
 
 				// Decrease/increase reduction by comparing opponent's stat score
 				if (ss->history > 0 && (ss-1)->history < 0)
@@ -1468,7 +1469,7 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 		if (PVNode && bestScore > alpha)
 			alpha = bestScore;
 
-		futilityBase = bestScore + 145; // PARAM_FUTILITY_MARGIN_QUIET 128 -> 145
+		futilityBase = bestScore + PARAM_FUTILITY_MARGIN_QUIET;
 	}
 
 	evaluate(pos, ss);
