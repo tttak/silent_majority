@@ -983,7 +983,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// step7
 	// Futility pruning: child node (skipped when in check)
 	if (!rootNode
-		&& depth < 9 * OnePly // PARAM_FUTILITY_RETURN_DEPTH 7 -> 9
+		&& depth < PARAM_FUTILITY_RETURN_DEPTH * OnePly // PARAM_FUTILITY_RETURN_DEPTH 7 -> 9
 		&& eval < ScoreKnownWin
 		&& eval - futilityMargin(depth, progress) >= beta)
 	{
@@ -1499,8 +1499,6 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 			&& futilityBase > -ScoreKnownWin)
 		{
 			futilityScore = futilityBase + Position::capturePieceScore(pos.piece(move.to()));
-			if (move.isPromotion())
-				futilityScore += Position::promotePieceScore(move.pieceTypeFrom());
 
 			if (futilityScore <= alpha) {
 				bestScore = std::max(bestScore, futilityScore);
