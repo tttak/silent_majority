@@ -26,7 +26,7 @@ public:
 
     size_t pvIdx;
 	size_t idx;
-    int maxPly, callsCnt;
+    int maxPly, callsCnt, nmp_ply, nmp_odd;
 
     Position rootPos;
     Search::RootMoves rootMoves;

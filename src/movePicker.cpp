@@ -152,7 +152,7 @@ Move MovePicker::nextMove(bool skipQuiets) {
 		{
 			move = pick_best(cur++, endMoves);
 			if (move != ttMove) {
-				if (pos.seeGe(move, ScoreZero))
+				if (pos.seeGe(move, Score(-55 * (cur-1)->score / 1024)))
 					return move;
 
 				// Losing capture, move it to the beginning of the array

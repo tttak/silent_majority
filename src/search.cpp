@@ -36,7 +36,8 @@ namespace {
     const int skipPhase[] = { 0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7 };
 
 	const Score Tempo = Score(20); // Must be visible to search
-    const int razorMargin[] = { 0, 570, 603, 554 };
+    //const int razorMargin[] = { 0, 570, 603, 554 };
+    const int razorMargin = 600;
     inline Score futilityMargin(const Depth d) { return Score(150 * d / OnePly);} // PARAM_FUTILITY_MARGIN_ALPHA 150 -> 147 -> 150
     //inline Score futilityMargin(const Depth d) { return Score(170 * d / OnePly);} // Yomita
 
@@ -962,12 +963,14 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// razoring
 	if (!PvNode
 		&& depth < 4 * OnePly
-		&& eval + razorMargin[depth / OnePly] <= alpha)
+		&& eval + razorMargin <= alpha)
+		//&& eval + razorMargin[depth / OnePly] <= alpha)
 	{
 		if (depth <= OnePly)
 			return qsearch<NonPV, false>(pos, ss, alpha, alpha+1);
 
-		const Score ralpha = alpha - razorMargin[depth / OnePly];
+		//const Score ralpha = alpha - razorMargin[depth / OnePly];
+		const Score ralpha = alpha - razorMargin;
 		const Score s = qsearch<NonPV, false>(pos, ss, ralpha, ralpha+1);
 		if (s <= ralpha)
 			return s;
@@ -1008,12 +1011,17 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 			if (nullScore >= ScoreMateInMaxPly)
 				nullScore = beta;
 
-			if (depth < 12 * OnePly && abs(beta) < ScoreKnownWin) // PARAM_NULL_MOVE_RETURN_DEPTH 12 -> 14 -> 12
+			if (abs(beta) < ScoreKnownWin && (depth < 12 * OnePly || thisThread->nmp_ply)) // PARAM_NULL_MOVE_RETURN_DEPTH 12 -> 14 -> 12
 				return nullScore;
+
+			thisThread->nmp_ply = ss->ply + 3 * (depth-R) / 4;
+			thisThread->nmp_odd = ss->ply % 2;
 
 			assert(Depth0 < depth - R);
 			const Score s = (depth-R < OnePly ? qsearch<NonPV, false>(pos, ss, beta-1, beta)
                                               : search<NonPV>(pos, ss, beta-1, beta, depth-R, false, true));
+
+			thisThread->nmp_odd = thisThread->nmp_ply = 0;
 
 			if (s >= beta)
 				return nullScore;
@@ -1283,6 +1291,7 @@ moves_loop:
 
 		// 通常の探索
 		if (PvNode && (moveCount == 1 || (alpha < score && (rootNode || score < beta)))) {
+		//if (PvNode && (moveCount == 1 || score > alpha)) {
 
             (ss+1)->pv = pv;
             (ss+1)->pv[0] = MOVE_NONE;
