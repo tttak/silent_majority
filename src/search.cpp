@@ -918,7 +918,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
     	              Move::moveNone(), ss->staticEval, TT.generation());
     	    return bestScore;
 		}
-		if (!inCheck && (move = pos.mateMoveIn1Ply())) {
+		if (!inCheck && (move = pos.mateMoveIn1Ply()) != MOVE_NONE) {
     		ss->staticEval = bestScore = mateIn(ss->ply);
     		tte->save(posKey, scoreToTT(bestScore, ss->ply), BoundExact, depth,
 					  move, ss->staticEval, TT.generation());
@@ -1438,7 +1438,7 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 		bestScore = futilityBase = -ScoreInfinite;
 	}
 	else {
-		if (move = pos.mateMoveIn1Ply())
+		if ((move = pos.mateMoveIn1Ply()) != MOVE_NONE)
 			return mateIn(ss->ply);
 
 		if (ttHit) {

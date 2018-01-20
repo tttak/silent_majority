@@ -24,7 +24,7 @@ namespace {
 		for (Square sq = SQ11; sq < SquareNum; ++sq) {
 			const Rank r = makeRank(sq);
 			const File f = makeFile(sq);
-			if (abs(rank - r) == abs(file - f))
+			if (abs((int)rank - (int)r) == abs((int)file - (int)f))
 				result.setBit(sq);
 		}
 		result &= ~(rankMask<Rank9>() | rankMask<Rank1>() | fileMask<File9>() | fileMask<File1>());
@@ -47,7 +47,7 @@ namespace {
 		Bitboard result = allZeroBB();
 		for (SquareDelta delta : deltaArray[isBishop]) {
 			for (Square sq = square + delta;
-				 isInSquare(sq) && abs(makeRank(sq - delta) - makeRank(sq)) <= 1;
+				 isInSquare(sq) && abs((int)makeRank(sq - delta) - (int)makeRank(sq)) <= 1;
 				 sq += delta)
 			{
 				result.setBit(sq);
