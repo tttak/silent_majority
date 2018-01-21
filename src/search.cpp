@@ -901,7 +901,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 					updateCMStats(ss-1, pos.piece(prevSq), prevSq, -statBonus(depth + OnePly));
 			}
 			// Penalty for a quiet ttMove that fails low
-			else if (!ttMove.isCaptureOrPawnPromotion())
+			else if (!ttMove.isCaptureOrPromotion()) // change
 			{
 				int penalty = -statBonus(depth);
 				thisThread->history.update(pos.turn(), ttMove, penalty);
