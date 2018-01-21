@@ -38,7 +38,7 @@ namespace {
     const int skipPhase[] = { 0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7 };
 
 	const Score Tempo = Score(20); // Must be visible to search
-    const int razorMargin[] = { 0, 570, 603, 554 };
+    const int razorMargin = 600;
     inline Score futilityMargin(const Depth d, double p) { return Score((int)(50 + 250 * p) * (d / OnePly));}
     //inline Score futilityMargin(const Depth d) { return Score(150 * d / OnePly);} // PARAM_FUTILITY_MARGIN_ALPHA 150 -> 147 -> 150
     //inline Score futilityMargin(const Depth d) { return Score(170 * d / OnePly);} // Yomita
@@ -361,14 +361,28 @@ void Search::clear() {
 // 入玉勝ちかどうかを判定
 bool nyugyoku(const Position& pos) {
 	// CSA ルールでは、一 から 六 の条件を全て満たすとき、入玉勝ち宣言が出来る。
+	// 判定が高速に出来るものから順に判定していく事にする。
 
 	// 一 宣言側の手番である。
 
 	// この関数を呼び出すのは自分の手番のみとする。ponder では呼び出さない。
 
+	// 六 宣言側の持ち時間が残っている。
+
+	// 持ち時間が無ければ既に負けなので、何もチェックしない。
+
+	// 五 宣言側の玉に王手がかかっていない。
+	if (pos.inCheck())
+		return false;
+
 	const Color us = pos.turn();
 	// 敵陣のマスク
 	const Bitboard opponentsField = (us == Black ? inFrontMask<Black, Rank4>() : inFrontMask<White, Rank6>());
+
+	// 四 宣言側の敵陣三段目以内の駒は、玉を除いて10枚以上存在する。
+	const int ownPiecesCount = (pos.bbOf(us) & opponentsField).popCount() - 1;
+	if (ownPiecesCount < 10)
+		return false;
 
 	// 二 宣言側の玉が敵陣三段目以内に入っている。
 	if (!pos.bbOf(King, us).andIsAny(opponentsField))
@@ -378,11 +392,9 @@ bool nyugyoku(const Position& pos) {
 	//     先手の場合28点以上の持点がある。
 	//     後手の場合27点以上の持点がある。
 	//     点数の対象となるのは、宣言側の持駒と敵陣三段目以内に存在する玉を除く宣言側の駒のみである。
-	const Bitboard bigBB = pos.bbOf(Rook, Dragon, Bishop, Horse) & opponentsField & pos.bbOf(us);
-	const Bitboard smallBB = (pos.bbOf(Pawn, Lance, Knight, Silver) | pos.goldsBB()) & opponentsField & pos.bbOf(us);
+	const int ownBigPiecesCount = (pos.bbOf(Rook, Dragon, Bishop, Horse) & opponentsField & pos.bbOf(us)).popCount();
 	const Hand hand = pos.hand(us);
-	const int val = (bigBB.popCount() + hand.numOf<HRook>() + hand.numOf<HBishop>()) * 5
-		+ smallBB.popCount()
+	const int val = ownPiecesCount + (ownBigPiecesCount + hand.numOf<HRook>() + hand.numOf<HBishop>()) * 4
 		+ hand.numOf<HPawn>() + hand.numOf<HLance>() + hand.numOf<HKnight>()
 		+ hand.numOf<HSilver>() + hand.numOf<HGold>();
 #if defined LAW_24
@@ -392,20 +404,6 @@ bool nyugyoku(const Position& pos) {
 	if (val < (us == Black ? 28 : 27))
 		return false;
 #endif
-
-	// 四 宣言側の敵陣三段目以内の駒は、玉を除いて10枚以上存在する。
-
-	// 玉は敵陣にいるので、自駒が敵陣に11枚以上あればよい。
-	if ((pos.bbOf(us) & opponentsField).popCount() < 11)
-		return false;
-
-	// 五 宣言側の玉に王手がかかっていない。
-	if (pos.inCheck())
-		return false;
-
-	// 六 宣言側の持ち時間が残っている。
-
-	// 持ち時間が無ければ既に負けなので、何もチェックしない。
 
 	return true;
 }
@@ -865,6 +863,10 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 			return alpha;
 	}
 
+	double rate[2];
+	Progress::evaluate(pos, ss, rate);
+	double progress = rate[0], progress_nyugyoku = rate[1];
+
     ss->currentMove = (ss+1)->excludedMove = bestMove = Move::moveNone();
     ss->counterMoves = &thisThread->counterMoveHistory[Empty][0];
 	(ss+2)->killers[0] = (ss+2)->killers[1] = Move::moveNone();
@@ -895,7 +897,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 		{
 			if (ttScore >= beta)
 			{
-				if (!ttMove.isCaptureOrPawnPromotion())
+				if (IS_PROLOGUE2 ? !ttMove.isCaptureOrPawnPromotion() : !ttMove.isCaptureOrPromotion())
 					updateStats(pos, ss, ttMove, nullptr, 0, statBonus(depth));
 
 				// Extra penalty for a quiet TT move in previous ply when it gets refuted
@@ -904,7 +906,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 					updateCMStats(ss-1, pos.piece(prevSq), prevSq, -statBonus(depth + OnePly));
 			}
 			// Penalty for a quiet ttMove that fails low
-			else if (!ttMove.isCaptureOrPawnPromotion())
+			else if (!ttMove.isCaptureOrPromotion()) // change
 			{
 				int penalty = -statBonus(depth);
 				thisThread->history.update(pos.turn(), ttMove, penalty);
@@ -914,30 +916,22 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 		return ttScore;
 	}
 
-#if 1
-	if (pos.gamePly() > 210 && nyugyoku(pos)) {
-        bestScore = mateIn(ss->ply);
-        tte->save(posKey, scoreToTT(bestScore, ss->ply), BoundExact, DepthMax - OnePly,
-                  Move::moveNone(), ScoreNone, TT.generation());
-        return bestScore;
-	}
-#endif
-#if 1
-	if (!rootNode
-		&& !inCheck)
-	{
-		if (move = pos.mateMoveIn1Ply()) {
-			bestScore = mateIn(ss->ply);
-			tte->save(posKey, scoreToTT(bestScore, ss->ply), BoundExact, DepthMax - OnePly,
-					  move, bestScore, TT.generation());
+	if (!rootNode) {
+if(!IS_PROLOGUE3){
+		if (nyugyoku(pos)) {
+    	    ss->staticEval = bestScore = mateIn(ss->ply);
+    	    tte->save(posKey, scoreToTT(bestScore, ss->ply), BoundExact, depth,
+    	              Move::moveNone(), ss->staticEval, TT.generation());
+    	    return bestScore;
+		}
+}
+		if (!inCheck && (move = pos.mateMoveIn1Ply()) != MOVE_NONE) {
+    		ss->staticEval = bestScore = mateIn(ss->ply);
+    		tte->save(posKey, scoreToTT(bestScore, ss->ply), BoundExact, depth,
+					  move, ss->staticEval, TT.generation());
 			return bestScore;
 		}
 	}
-#endif
-
-	double rate[2];
-	Progress::evaluate(pos, ss, rate);
-	double progress = rate[0], progress_nyugyoku = rate[1];
 
 	// step5
 	// evaluate the position statically
@@ -969,12 +963,12 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// razoring
 	if (!PvNode
 		&& depth < 4 * OnePly
-		&& eval + razorMargin[depth / OnePly] <= alpha)
+		&& eval + razorMargin <= alpha)
 	{
 		if (depth <= OnePly)
 			return qsearch<NonPV, false>(pos, ss, alpha, alpha+1);
 
-		const Score ralpha = alpha - razorMargin[depth / OnePly];
+		const Score ralpha = alpha - razorMargin;
 		const Score s = qsearch<NonPV, false>(pos, ss, ralpha, ralpha+1);
 		if (s <= ralpha)
 			return s;
@@ -994,8 +988,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 	// null move
 	if (!PvNode
 		&& eval >= beta
-        && (ss->staticEval >= beta - PARAM_NULL_MOVE_MARGIN * (depth / OnePly - 6) || depth >= 13 * OnePly)
-        && (ss->ply >= thisThread->nmp_ply || ss->ply % 2 == thisThread->pair))
+        && (ss->staticEval >= beta - PARAM_NULL_MOVE_MARGIN * (depth / OnePly - 6) || depth >= 13 * OnePly))
 	{
         assert(eval - beta >= 0);
 
@@ -1018,24 +1011,15 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 			if (depth < 12 * OnePly && abs(beta) < ScoreKnownWin) // PARAM_NULL_MOVE_RETURN_DEPTH 12 -> 14 -> 12
 				return nullScore;
 
-			R += OnePly;
-			int nmp_ply = thisThread->nmp_ply;
-			int pair = thisThread->pair;
-			thisThread->nmp_ply = ss->ply + 3 * (depth-R) / 4;
-			thisThread->pair = (ss->ply % 2) == 0;
-
 			assert(Depth0 < depth - R);
 			const Score s = (depth-R < OnePly ? qsearch<NonPV, false>(pos, ss, beta-1, beta)
                                               : search<NonPV>(pos, ss, beta-1, beta, depth-R, false, true));
-
-			thisThread->pair = pair;
-			thisThread->nmp_ply = nmp_ply;
-
 			if (s >= beta)
 				return nullScore;
 		}
 	}
 
+if(!IS_PROLOGUE1){
 	// step9
 	// probcut
 	if (!PvNode
@@ -1064,6 +1048,7 @@ Score search(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dept
 			}
 		}
 	}
+}
 
 	// step10
 	// internal iterative deepening
@@ -1288,7 +1273,7 @@ moves_loop:
 			doFullDepthSearch = (!PvNode || moveCount > 1);
 
 		// step16
-		// full depth search
+		// full dep3th search
 		// PVS
 		if (doFullDepthSearch) {
 			score = (newDepth < OnePly ?
@@ -1451,7 +1436,7 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 		bestScore = futilityBase = -ScoreInfinite;
 	}
 	else {
-		if (move = pos.mateMoveIn1Ply())
+		if ((move = pos.mateMoveIn1Ply()) != MOVE_NONE)
 			return mateIn(ss->ply);
 
 		if (ttHit) {
@@ -1499,6 +1484,8 @@ Score qsearch(Position& pos, Stack* ss, Score alpha, Score beta, const Depth dep
 			&& futilityBase > -ScoreKnownWin)
 		{
 			futilityScore = futilityBase + Position::capturePieceScore(pos.piece(move.to()));
+			if (move.isPromotion())
+				futilityScore += Position::promotePieceScore(move.pieceTypeFrom());
 
 			if (futilityScore <= alpha) {
 				bestScore = std::max(bestScore, futilityScore);

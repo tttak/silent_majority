@@ -145,12 +145,6 @@ void ThreadPool::startThinking(const Position& pos, const Search::LimitsType& li
 	}
 #endif
 
-	// TODO: ↓いいのか？
-	for (Thread* th : Threads) {
-		th->nmp_ply = 0;
-		th->pair = -1;
-	}
-
 #if defined LEARN
 	// 浅い探索なので、thread 生成、破棄のコストが高い。余分な thread を生成せずに直接探索を呼び出す。
 	Search::think();

@@ -3,6 +3,9 @@
 
 #define LIMIT1 (0.16)
 #define LIMIT2 (0.64)
+#define IS_PROLOGUE1 (progress < LIMIT1)
+#define IS_PROLOGUE2 (progress < 0.32)
+#define IS_PROLOGUE3 (progress < LIMIT2)
 
 // --- 8< --- 8< --- 8< --- 8< --- 8< --- 8< --- 8< --- 8< ---
 // step7
@@ -24,6 +27,7 @@
 
 //#define PARAM_NULL_MOVE_RETURN_DEPTH 13 // YaneuraOu
 #define PARAM_NULL_MOVE_RETURN_DEPTH 12 // stay!
+//#define PARAM_NULL_MOVE_RETURN_DEPTH (int)(progress < LIMIT1 ? 14 : (progress < LIMIT2 ? 13 : 12))
 
 
 // --- 8< --- 8< --- 8< --- 8< --- 8< --- 8< --- 8< --- 8< ---
@@ -82,8 +86,8 @@
 // step15
 // LMR
 //#define PARAM_CUTNODE_REDUCTION_MARGIN 2 // YaneuraOu
-//#define PARAM_CUTNODE_REDUCTION_MARGIN 2 // change!
-#define PARAM_CUTNODE_REDUCTION_MARGIN (int)(progress < LIMIT1 ? 2 : (progress < LIMIT2 ? 3 : 4))
+#define PARAM_CUTNODE_REDUCTION_MARGIN 2 // change!
+//#define PARAM_CUTNODE_REDUCTION_MARGIN (int)(progress < LIMIT1 ? 2 : (progress < LIMIT2 ? 3 : 4))
 
 //#define PARAM_REDUCTION_BY_HISTORY 4000 // YaneuraOu
 #define PARAM_REDUCTION_BY_HISTORY 4000 // stay!

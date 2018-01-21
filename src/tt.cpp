@@ -11,7 +11,7 @@ void TranspositionTable::resize(size_t mbSize) { // Mega Byte 指定
     clusterCount = newClusterCount;
 
     free(mem);
-    mem = calloc(clusterCount * sizeof(Cluster) + CacheLineSize - 1, 1);
+    mem = malloc(clusterCount * sizeof(Cluster) + CacheLineSize - 1);
 
     if (!mem)
     {
@@ -21,6 +21,7 @@ void TranspositionTable::resize(size_t mbSize) { // Mega Byte 指定
     }
 
     table = (Cluster*)((uintptr_t(mem) + CacheLineSize - 1) & ~(CacheLineSize - 1));
+    clear();
 }
 
 void TranspositionTable::clear() {
