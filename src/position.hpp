@@ -10,6 +10,9 @@
 #include <stack>
 #include <memory>
 
+#include "YaneuraOu/config.h"
+#include "YaneuraOu/eval/nnue/nnue_accumulator.h"
+
 class Position;
 class Thread;
 
@@ -55,6 +58,12 @@ struct StateInfo {
     ChangedLists cl;
 
     Key key() const { return boardKey + handKey; }
+
+#if defined(EVAL_NNUE)
+	Eval::NNUE::Accumulator accumulator;
+	// 評価値の差分計算の管理用
+	//Eval::DirtyPiece dirtyPiece;
+#endif
 };
 
 using StateStackPtr = std::unique_ptr<std::stack<StateInfo> >;
@@ -188,6 +197,8 @@ public:
 
 	// 次の手番
 	Color turn() const { return turn_; }
+	// 現局面の手番を返す。
+	Color side_to_move() const { return turn_; }
 
 	// pseudoLegal とは
 	// ・玉が相手駒の利きがある場所に移動する
@@ -248,6 +259,12 @@ public:
 	//const Searcher* csearcher() const { return searcher_; }
 	//Searcher* searcher() const { return searcher_; }
 	//void setSearcher(Searcher* s) { searcher_ = s; }
+
+	// --- StateInfo
+
+	// 現在の局面に対応するStateInfoを返す。
+	// たとえば、state()->capturedPieceであれば、前局面で捕獲された駒が格納されている。
+	StateInfo* state() const { return st_; }
 
 #if !defined NDEBUG
 	// for debug

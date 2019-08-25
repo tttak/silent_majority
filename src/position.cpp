@@ -11,6 +11,10 @@ Key Position::zobExclusion_;
 
 const CharToPieceUSI g_charToPieceUSI;
 
+#if defined(EVAL_NNUE)
+extern bool g_load_eval_completed;
+#endif
+
 namespace {
 	const char* PieceToCharCSATable[PieceNone] = {
 		" * ", "+FU", "+KY", "+KE", "+GI", "+KA", "+HI", "+KI", "+OU", "+TO", "+NY", "+NK", "+NG", "+UM", "+RY", "", "",
@@ -240,6 +244,11 @@ void Position::doMove(const Move move, StateInfo& newSt, const CheckInfo& ci, co
 	newSt.previous = st_;
 	st_ = &newSt;
 
+#if defined(EVAL_NNUE)
+	st_->accumulator.computed_accumulation = false;
+	st_->accumulator.computed_score = false;
+#endif
+
 	st_->cl.size = 1;
 
 	++gamePly_;
@@ -335,8 +344,13 @@ void Position::doMove(const Move move, StateInfo& newSt, const CheckInfo& ci, co
 		// Black と White の or を取る方が速いはず。
 		byTypeBB_[Occupied] = bbOf(Black) | bbOf(White);
 
-		if (ptTo == King)
+		if (ptTo == King) {
 			kingSquare_[us] = to;
+
+#if defined(EVAL_NNUE)
+			st_->cl.listindex[0] = PIECE_NUMBER_KING + us;
+#endif
+		}
 		else {
 			const Piece pcTo = colorAndPieceTypeToPiece(us, ptTo);
 			const int fromListIndex = evalList_.squareHandToList[from];
@@ -494,11 +508,19 @@ void Position::doNullMove(StateInfo& backUpSt) {
 	dst->hand = hand(turn());
 	turn_ = oppositeColor(turn());
 
+#if defined(EVAL_NNUE)
+	dst->accumulator = src->accumulator;
+#endif
+
 	if (DO) {
 		st_->boardKey ^= zobTurn();
 		prefetch(TT.firstEntry(st_->key()));
 		st_->pliesFromNull = 0;
 		st_->continuousCheck[turn()] = 0;
+
+#if defined(EVAL_NNUE)
+		st_->accumulator.computed_score = false;
+#endif
 	}
 	st_->hand = hand(turn());
 
@@ -1797,6 +1819,13 @@ void Position::set(const std::string& sfen, Thread* th) {
 	setEvalList();
 	findCheckers();
 	st_->material = computeMaterial();
+
+#if defined(EVAL_NNUE)
+	if (g_load_eval_completed) {
+		Eval::compute_eval(*this);
+	}
+#endif
+
 	thisThread_ = th;
 
 	return;

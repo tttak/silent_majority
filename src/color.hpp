@@ -5,6 +5,7 @@
 
 enum Color {
 	Black, White, ColorNum
+	, COLOR_ZERO = 0, COLOR_NB = 2
 };
 OverloadEnumOperators(Color);
 

@@ -3,6 +3,12 @@
 #include "search.hpp"
 #include "thread.hpp"
 
+#include "YaneuraOu/config.h"
+
+#if defined(EVAL_NNUE)
+#include "YaneuraOu/evaluate.h"
+#endif
+
 KPPBoardIndexStartToPiece g_kppBoardIndexStartToPiece;
 
 std::array<s16, 2> Evaluater::KPP[SquareNum][fe_end][fe_end];
@@ -595,6 +601,36 @@ Score evaluateUnUseDiff(const Position& pos) {
 }
 
 Score Search::evaluate(Position& pos, Search::Stack* ss) {
+#if defined(EVAL_NNUE)
+
+// デバッグ用
+#if 0
+	Score score1 = Eval::evaluate(pos);
+	Score score2 = Eval::compute_eval(pos);
+
+	if (score1 != score2) {
+		sync_cout << "Eval::evaluate(pos) != Eval::compute_eval(pos)" << sync_endl;
+		sync_cout << "Eval::evaluate(pos) = " << score1 << sync_endl;
+		sync_cout << "Eval::compute_eval(pos) = " << score2 << sync_endl;
+		pos.print();
+
+		const auto& cl = pos.state()->cl;
+		sync_cout << "cl.size = " << cl.size << sync_endl;
+		for (int i = 0; i < cl.size; ++i) {
+			sync_cout << "cl.listindex[" << i << "] = " << cl.listindex[i] << sync_endl;
+			sync_cout << "cl.clistpair[" << i << "].oldlist[0] = " << (Eval::BonaPiece)(cl.clistpair[i].oldlist[0]) << sync_endl;
+			sync_cout << "cl.clistpair[" << i << "].oldlist[1] = " << (Eval::BonaPiece)(cl.clistpair[i].oldlist[1]) << sync_endl;
+			sync_cout << "cl.clistpair[" << i << "].newlist[0] = " << (Eval::BonaPiece)(cl.clistpair[i].newlist[0]) << sync_endl;
+			sync_cout << "cl.clistpair[" << i << "].newlist[1] = " << (Eval::BonaPiece)(cl.clistpair[i].newlist[1]) << sync_endl;
+		}
+
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+	return Eval::evaluate(pos);
+
+#else
 	if (ss->staticEvalRaw.p[0][0] != ScoreNotEvaluated) {
 		const Score score = static_cast<Score>(ss->staticEvalRaw.sum(pos.turn()));
 		assert(score == evaluateUnUseDiff(pos));
@@ -616,4 +652,5 @@ Score Search::evaluate(Position& pos, Search::Stack* ss) {
 	ss->staticEvalRaw.encode();
 	*g_evalTable[keyExcludeTurn] = ss->staticEvalRaw;
 	return static_cast<Score>(ss->staticEvalRaw.sum(pos.turn())) / FVScale;
+#endif
 }

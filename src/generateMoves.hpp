@@ -43,6 +43,9 @@ public:
 		return false;
 	}
 
+	// 内部的に持っている指し手生成バッファの先頭
+	const ExtMove* begin() const { return moveList_; }
+
 private:
 	ExtMove moveList_[MaxLegalMoves];
 	ExtMove* curr_;

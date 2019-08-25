@@ -36,8 +36,15 @@ enum Score {
 	ScoreInfinite      = 32601,
 	ScoreNotEvaluated  = INT_MAX,
 	ScoreNone          = 32602
+
+	, VALUE_ZERO = ScoreZero
+
+	// 評価関数の返す値の最大値(2**14ぐらいに収まっていて欲しいところだが..)
+	, VALUE_MAX_EVAL = 27000
 };
 OverloadEnumOperators(Score);
+
+using Value = Score;
 
 inline Score mateIn(const Ply ply) {
 	return ScoreMate0Ply - static_cast<Score>(ply);

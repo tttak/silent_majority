@@ -1,6 +1,7 @@
 COMPILER = g++
 #COMPILER = mpicxx
-CFLAGS   = -std=c++11 -fno-exceptions -fno-rtti -Wextra -Ofast -MMD -MP -fopenmp
+#CFLAGS   = -std=c++11 -fno-exceptions -fno-rtti -Wextra -Ofast -MMD -MP -fopenmp
+CFLAGS   = -std=c++14 -fno-exceptions -fno-rtti -Wextra -Ofast -MMD -MP -fopenmp
 CFLAGS   += -march=native
 LDFLAGS  = -lpthread #-lboost_mpi -lboost_serialization
 LIBS     =
@@ -19,16 +20,29 @@ endif
 SOURCES  = main.cpp bitboard.cpp init.cpp mt64bit.cpp position.cpp evalList.cpp \
            move.cpp movePicker.cpp square.cpp usi.cpp generateMoves.cpp evaluate.cpp \
            search.cpp hand.cpp tt.cpp timeManager.cpp book.cpp benchmark.cpp \
-           thread.cpp common.cpp pieceScore.cpp
+           thread.cpp common.cpp pieceScore.cpp \
+           YaneuraOu/misc.cpp \
+           YaneuraOu/extra/bitop.cpp \
+           YaneuraOu/eval/evaluate_bona_piece.cpp \
+           YaneuraOu/eval/nnue/evaluate_nnue.cpp \
+           YaneuraOu/eval/nnue/nnue_test_command.cpp \
+           YaneuraOu/eval/nnue/features/half_kp.cpp
+
+
 OBJECTS  = $(addprefix $(OBJDIR)/, $(SOURCES:.cpp=.o))
 DEPENDS  = $(OBJECTS:.o=.d)
 
 $(TARGET): $(OBJECTS) $(LIBS)
 	$(COMPILER) -o $@ $^ $(LDFLAGS) $(CFLAGS)
 
+#$(OBJDIR)/%.o: %.cpp
+#	@[ -d $(OBJDIR) ] || mkdir -p $(OBJDIR)
+#	$(COMPILER) $(CFLAGS) $(INCLUDE) -o $@ -c $<
+
 $(OBJDIR)/%.o: %.cpp
-	@[ -d $(OBJDIR) ] || mkdir -p $(OBJDIR)
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	$(COMPILER) $(CFLAGS) $(INCLUDE) -o $@ -c $<
+
 
 all: clean $(TARGET)
 

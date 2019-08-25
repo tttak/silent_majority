@@ -207,6 +207,8 @@ enum SyncCout {
 std::ostream& operator << (std::ostream& os, SyncCout sc);
 #define SYNCCOUT std::cout << IOLock
 #define SYNCENDL std::endl << IOUnlock
+#define sync_cout std::cout << IOLock
+#define sync_endl std::endl << IOUnlock
 
 #if defined LEARN
 #undef SYNCCOUT

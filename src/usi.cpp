@@ -12,6 +12,10 @@
 
 #include "timeManager.hpp"
 
+#if defined(EVAL_NNUE) && defined(ENABLE_TEST_CMD)
+#include "Yaneuraou/eval/nnue/nnue_test_command.h"
+#endif
+
 using namespace std;
 
 USI::OptionsMap Options; // Global object
@@ -80,7 +84,13 @@ void init(OptionsMap& o) {
 	o["Min_Book_Ply"]                = Option(256, 0, 256);
 	o["Max_Book_Ply"]                = Option(256, 0, 256);
 	o["Min_Book_Score"]              = Option(-180, -ScoreInfinite, ScoreInfinite);
+
+#if !defined(EVAL_NNUE)
 	o["Eval_Dir"]                    = Option("20161007", onEvalDir);
+#else
+	o["Eval_Dir"]                    = Option("nnue_eval", onEvalDir);
+#endif
+
 //	o["Write_Synthesized_Eval"]      = Option(false);
 	o["USI_Ponder"]                  = Option(false);
 	o["Byoyomi_Margin"]              = Option(0, 0, INT_MAX);
@@ -412,10 +422,28 @@ void measureGenerateMoves(const Position& pos) {
 #endif
 
 #ifdef NDEBUG
+#if !defined(EVAL_NNUE)
 const std::string MyName = "SILENT_MAJORITY 1.25";
+#else
+const std::string MyName = "SILENT_MAJORITY 1.25 NNUE";
+#endif
 #else
 const std::string MyName = "Apery Debug Build";
 #endif
+
+void test_cmd(Position& pos, istringstream& is)
+{
+	std::string param;
+	is >> param;
+
+#if defined(EVAL_NNUE) && defined(ENABLE_TEST_CMD)
+	if (param == "nnue") {
+		// NNUE評価関数ファイルの読込み
+		Eval::load_eval(Options["Eval_Dir"]);
+		Eval::NNUE::TestCommand(pos, is);
+	}
+#endif
+}
 
 void USI::loop(int argc, char* argv[]) {
 	Position pos(DefaultStartPositionSFEN, Threads.main());
@@ -463,7 +491,12 @@ void USI::loop(int argc, char* argv[]) {
 												<< "\nusiok" << SYNCENDL;
 		else if (token == "go"       ) go(pos, ssCmd);
 		else if (token == "isready") {
+#if !defined(EVAL_NNUE)
 			std::unique_ptr<Evaluater>(new Evaluater)->init(Options["Eval_Dir"], true);
+#else
+			// NNUE評価関数ファイルの読込み
+			Eval::load_eval(Options["Eval_Dir"]);
+#endif
 			SYNCCOUT << "readyok" << SYNCENDL;
 		}
 		else if (token == "position" ) setPosition(pos, ssCmd);
@@ -490,6 +523,15 @@ void USI::loop(int argc, char* argv[]) {
 		else if (token == "t"        ) std::cout << pos.mateMoveIn1Ply().toCSA() << std::endl;
 		else if (token == "b"        ) makeBook(pos, ssCmd);
 #endif
+
+#if defined(EVAL_NNUE)
+		else if (token == "eval"     ) std::cout << "eval = " << Eval::compute_eval(pos) << std::endl;
+#if defined(ENABLE_TEST_CMD)
+		// テストコマンド
+		else if (token == "test") test_cmd(pos, ssCmd);
+#endif
+#endif
+
 		else                           SYNCCOUT << "unknown command: " << cmd << SYNCENDL;
 	} while (token != "quit" && argc == 1);
 
