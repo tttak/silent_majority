@@ -18,7 +18,12 @@ std::array<s32, 2> Evaluater::KK[SquareNum][SquareNum];
 EvaluateHashTable g_evalTable;
 void prefetch_evalhash(const Key key)
 {
+#if !defined(EVAL_NNUE)
 	prefetch(g_evalTable[key >> 1]);
+#else
+	constexpr auto mask = ~((u64)0x1f);
+	prefetch((void*)((u64)g_evalTable[key] & mask));
+#endif
 }
 
 const int kppArray[31] = {

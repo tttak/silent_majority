@@ -10,6 +10,7 @@
 
 #define EVAL_NNUE
 #define USE_FV38
+#define USE_EVAL_HASH
 #define ENABLE_TEST_CMD
 #define PRETTY_JP
 

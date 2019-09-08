@@ -1160,6 +1160,45 @@ struct EvalSum {
 class Position;
 //struct SearchStack;
 
+#if defined(EVAL_NNUE)
+// HashTableに評価値を保存するために利用するクラス
+struct alignas(16) ScoreKeyValue {
+#if defined(USE_SSE2)
+  ScoreKeyValue() = default;
+  ScoreKeyValue(const ScoreKeyValue& other) {
+    static_assert(sizeof(ScoreKeyValue) == sizeof(__m128i),
+                  "sizeof(ScoreKeyValue) should be equal to sizeof(__m128i)");
+    _mm_store_si128(&as_m128i, other.as_m128i);
+  }
+  ScoreKeyValue& operator=(const ScoreKeyValue& other) {
+    _mm_store_si128(&as_m128i, other.as_m128i);
+    return *this;
+  }
+#endif
+
+  // evaluate hashでatomicに操作できる必要があるのでそのための操作子
+  void encode() {
+#if defined(USE_SSE2)
+    // ScoreKeyValue は atomic にコピーされるので key が合っていればデータも合っている。
+#else
+    key ^= score;
+#endif
+  }
+  // decode()はencode()の逆変換だが、xorなので逆変換も同じ変換。
+  void decode() { encode(); }
+
+  union {
+    struct {
+      std::uint64_t key;
+      std::uint64_t score;
+    };
+#if defined(USE_SSE2)
+    __m128i as_m128i;
+#endif
+  };
+};
+#endif
+
 #if !defined HAVE_AVX2
 const size_t EvaluateTableSize = 0x400000; // 134MB
 #else
@@ -1168,7 +1207,12 @@ const size_t EvaluateTableSize = 0x2000000; // 1GB
 //const size_t EvaluateTableSize = 0x20000000; // 17GB
 #endif
 
+#if !defined(EVAL_NNUE)
 using EvaluateHashEntry = EvalSum;
+#else
+using EvaluateHashEntry = ScoreKeyValue;
+#endif
+
 struct EvaluateHashTable : HashTable<EvaluateHashEntry, EvaluateTableSize> {};
 extern EvaluateHashTable g_evalTable;
 

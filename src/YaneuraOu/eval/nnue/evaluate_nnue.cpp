@@ -12,7 +12,8 @@
 //#include "../../../usi.h"
 
 #if defined(USE_EVAL_HASH)
-#include "../evalhash.h"
+//#include "../evalhash.h"
+#include "../../../evaluate.hpp"
 #endif
 
 #include "evaluate_nnue.h"
@@ -161,60 +162,6 @@ static Value ComputeScore(const Position& pos, bool refresh = false) {
 }
 
 }  // namespace NNUE
-
-#if defined(USE_EVAL_HASH)
-
-// HashTableに評価値を保存するために利用するクラス
-struct alignas(16) ScoreKeyValue {
-#if defined(USE_SSE2)
-  ScoreKeyValue() = default;
-  ScoreKeyValue(const ScoreKeyValue& other) {
-    static_assert(sizeof(ScoreKeyValue) == sizeof(__m128i),
-                  "sizeof(ScoreKeyValue) should be equal to sizeof(__m128i)");
-    _mm_store_si128(&as_m128i, other.as_m128i);
-  }
-  ScoreKeyValue& operator=(const ScoreKeyValue& other) {
-    _mm_store_si128(&as_m128i, other.as_m128i);
-    return *this;
-  }
-#endif
-
-  // evaluate hashでatomicに操作できる必要があるのでそのための操作子
-  void encode() {
-#if defined(USE_SSE2)
-    // ScoreKeyValue は atomic にコピーされるので key が合っていればデータも合っている。
-#else
-    key ^= score;
-#endif
-  }
-  // decode()はencode()の逆変換だが、xorなので逆変換も同じ変換。
-  void decode() { encode(); }
-
-  union {
-    struct {
-      std::uint64_t key;
-      std::uint64_t score;
-    };
-#if defined(USE_SSE2)
-    __m128i as_m128i;
-#endif
-  };
-};
-
-// evaluateしたものを保存しておくHashTable(俗にいうehash)
-
-struct EvaluateHashTable : HashTable<ScoreKeyValue> {};
-
-EvaluateHashTable g_evalTable;
-void EvalHash_Resize(size_t mbSize) { g_evalTable.resize(mbSize); }
-void EvalHash_Clear() { g_evalTable.clear(); };
-
-// prefetchする関数も用意しておく。
-void prefetch_evalhash(const Key key) {
-  constexpr auto mask = ~((u64)0x1f);
-  prefetch((void*)((u64)g_evalTable[key] & mask));
-}
-#endif
 
 // 評価関数ファイルを読み込む
 // benchコマンドなどでOptionsを保存して復元するのでこのときEvalDirが変更されたことになって、
