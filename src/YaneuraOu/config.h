@@ -24,6 +24,12 @@
 //#define ASSERT_LV 5
 
 
+// どれか一つをdefineする。
+//#define EVAL_NNUE_HALFKP
+#define EVAL_NNUE_HALFKP_KK
+
+
+
 // --------------------
 //      configure
 // --------------------

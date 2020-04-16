@@ -26,7 +26,8 @@ SOURCES  = main.cpp bitboard.cpp init.cpp mt64bit.cpp position.cpp evalList.cpp 
            YaneuraOu/eval/evaluate_bona_piece.cpp \
            YaneuraOu/eval/nnue/evaluate_nnue.cpp \
            YaneuraOu/eval/nnue/nnue_test_command.cpp \
-           YaneuraOu/eval/nnue/features/half_kp.cpp
+           YaneuraOu/eval/nnue/features/half_kp.cpp \
+           YaneuraOu/eval/nnue/features/kk.cpp
 
 
 OBJECTS  = $(addprefix $(OBJDIR)/, $(SOURCES:.cpp=.o))

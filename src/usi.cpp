@@ -425,7 +425,13 @@ void measureGenerateMoves(const Position& pos) {
 #if !defined(EVAL_NNUE)
 const std::string MyName = "SILENT_MAJORITY 1.25";
 #else
-const std::string MyName = "SILENT_MAJORITY 1.25 NNUE";
+
+#if defined(EVAL_NNUE_HALFKP_KK)
+const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP-KK";
+#else
+const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP";
+#endif
+
 #endif
 #else
 const std::string MyName = "Apery Debug Build";
