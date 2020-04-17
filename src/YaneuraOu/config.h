@@ -26,7 +26,8 @@
 
 // どれか一つをdefineする。
 //#define EVAL_NNUE_HALFKP
-#define EVAL_NNUE_HALFKP_KK
+//#define EVAL_NNUE_HALFKP_KK
+#define EVAL_NNUE_HALFKP_PP
 
 
 

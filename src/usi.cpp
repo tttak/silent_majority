@@ -428,6 +428,8 @@ const std::string MyName = "SILENT_MAJORITY 1.25";
 
 #if defined(EVAL_NNUE_HALFKP_KK)
 const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP-KK";
+#elif defined(EVAL_NNUE_HALFKP_PP)
+const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP-PP";
 #else
 const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP";
 #endif

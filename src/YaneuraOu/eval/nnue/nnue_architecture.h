@@ -11,6 +11,8 @@
 
 #if defined(EVAL_NNUE_HALFKP_KK)
 #include "architectures/halfkp-kk_256x2-32-32.h"
+#elif defined(EVAL_NNUE_HALFKP_PP)
+#include "architectures/halfkp-pp_256x2-32-32.h"
 #else
 #include "architectures/halfkp_256x2-32-32.h"
 #endif
