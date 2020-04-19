@@ -15,6 +15,8 @@
 #include "architectures/halfkp-pp_256x2-32-32.h"
 #elif defined(EVAL_NNUE_HALFKP_GAMEPLY40x4)
 #include "architectures/halfkp_gameply40x4_256x2-32-32.h"
+#elif defined(EVAL_NNUE_HALFKPKFILE)
+#include "architectures/halfkpkfile_256x2-32-32.h"
 #else
 #include "architectures/halfkp_256x2-32-32.h"
 #endif

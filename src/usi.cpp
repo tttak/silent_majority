@@ -432,6 +432,8 @@ const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP-KK";
 const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP-PP";
 #elif defined(EVAL_NNUE_HALFKP_GAMEPLY40x4)
 const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP GamePly40x4";
+#elif defined(EVAL_NNUE_HALFKPKFILE)
+const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKPKfile";
 #else
 const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP";
 #endif
