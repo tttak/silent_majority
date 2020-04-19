@@ -115,6 +115,18 @@ class FeatureSetBase {
         case TriggerEvent::kAnyPieceMoved:
           reset[perspective] = true;
           break;
+
+#if defined(EVAL_NNUE_HALFKP_GAMEPLY40x4)
+        case TriggerEvent::kFriendKingMovedOrPly4181121:
+          reset[perspective] =
+              (cl.listindex[0] == PIECE_NUMBER_KING + perspective) || (pos.gamePly() == 41) || (pos.gamePly() == 81) || (pos.gamePly() == 121);
+          break;
+        case TriggerEvent::kEnemyKingMovedOrPly4181121:
+          reset[perspective] =
+              (cl.listindex[0] == PIECE_NUMBER_KING + ~perspective) || (pos.gamePly() == 41) || (pos.gamePly() == 81) || (pos.gamePly() == 121);
+          break;
+#endif
+
         default:
           ASSERT_LV5(false);
           break;

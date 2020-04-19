@@ -27,7 +27,8 @@
 // どれか一つをdefineする。
 //#define EVAL_NNUE_HALFKP
 //#define EVAL_NNUE_HALFKP_KK
-#define EVAL_NNUE_HALFKP_PP
+//#define EVAL_NNUE_HALFKP_PP
+#define EVAL_NNUE_HALFKP_GAMEPLY40x4
 
 
 
