@@ -40,16 +40,6 @@ typedef  int64_t s64;
 
 
 // --------------------
-//        升目
-// --------------------
-
-enum YaneSquare : int32_t
-{
-	SQ_NB = 81
-};
-
-
-// --------------------
 //        駒
 // --------------------
 enum YanePiece : uint32_t
@@ -63,6 +53,9 @@ enum YanePiece : uint32_t
 	W_PAWN = 17, W_LANCE, W_KNIGHT, W_SILVER, W_BISHOP, W_ROOK, W_GOLD, W_KING, W_PRO_PAWN, W_PRO_LANCE, W_PRO_KNIGHT, W_PRO_SILVER, W_HORSE, W_DRAGON, W_QUEEN,
 	PIECE_NB, // 終端
 	PIECE_ZERO = 0,
+
+	// --- 特殊な定数
+	PIECE_TYPE_NB = 16,// 駒種の数。(成りを含める)
 };
 
 OverloadEnumOperators(YanePiece)
@@ -83,6 +76,15 @@ enum PieceNumber : u8
   PIECE_NUMBER_ZERO = 0, PIECE_NUMBER_NB = 40,
 };
 OverloadEnumOperators(PieceNumber);
+
+
+// --------------------
+//        その他
+// --------------------
+
+// 升目
+constexpr int SQ_ZERO = 0;
+constexpr int SQ_NB = 81;
 
 class Position; // 前方宣言
 

@@ -5,25 +5,28 @@
 #include "pieceScore.hpp"
 #include "tt.hpp"
 #include "evaluate.hpp"
-
-template<typename T> struct Stats;
-typedef Stats<int> CounterMoveStats;
+#include "YaneuraOu/movepick.h"
 
 namespace Search {
 
+	// countermoves based pruningで使う閾値
+	constexpr int CounterMovePruneThreshold = 0;
+
 struct Stack {
     Move* pv;
-	CounterMoveStats* counterMoves;
 	Ply ply;
 	Move currentMove;
 	Move excludedMove; // todo: これは必要？
 	Move killers[2];
 	Score staticEval;
-	int history;
     int moveCount;
 	EvalSum staticEvalRaw; // 評価関数の差分計算用、値が入っていないときは [0] を ScoreNotEvaluated にしておく。
 						   // 常に Black 側から見た評価値を入れておく。
 						   // 0: 双玉に対する評価値, 1: 先手玉に対する評価値, 2: 後手玉に対する評価値
+
+	PieceToHistory* continuationHistory;// historyのうち、counter moveに関するhistoryへのポインタ。実体はThreadが持っている。
+	int statScore;						// 一度計算したhistoryの合計値をcacheしておくのに用いる。
+	bool inCheck;
 };
 
 struct RootMove {

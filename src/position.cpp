@@ -294,6 +294,9 @@ void Position::doMove(const Move move, StateInfo& newSt, const CheckInfo& ci, co
 			st_->checkersBB = allZeroBB();
 			st_->continuousCheck[us] = 0;
 		}
+
+		// 駒打ちは捕獲した駒がない。
+		st_->capturedPiece = Empty;
 	}
 	else {
 		const Square from = move.from();
@@ -337,7 +340,15 @@ void Position::doMove(const Move move, StateInfo& newSt, const CheckInfo& ci, co
 			st_->cl.clistpair[1].newlist[1] = evalList_.list1[toListIndex];
 
 			st_->material += (us == Black ? capturePieceScore(ptCaptured) : -capturePieceScore(ptCaptured));
+
+			// 捕獲した駒をStateInfoに保存しておく。
+			st_->capturedPiece = colorAndPieceTypeToPiece(them, ptCaptured);
 		}
+		else {
+			// 駒を取らない指し手
+			st_->capturedPiece = Empty;
+		}
+
 		prefetch(TT.firstEntry(boardKey + handKey));
 		prefetch_evalhash(boardKey + handKey);
 		// Occupied は to, from の位置のビットを操作するよりも、

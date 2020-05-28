@@ -33,9 +33,24 @@ public:
     Depth rootDepth;
     Depth completedDepth;
     std::atomic_bool resetCalls;
-	HistoryStats history;
-	MoveStats counterMoves;
-	CounterMoveHistoryStats counterMoveHistory;
+
+	// 近代的なMovePickerではオーダリングのために、スレッドごとにhistoryとcounter movesのtableを持たないといけない。
+	CounterMoveHistory counterMoves;
+	ButterflyHistory mainHistory;
+	LowPlyHistory lowPlyHistory;
+	CapturePieceToHistory captureHistory;
+
+	// コア数が多いか、長い持ち時間においては、ContinuationHistoryもスレッドごとに確保したほうが良いらしい。
+	// cf. https://github.com/official-stockfish/Stockfish/commit/5c58d1f5cb4871595c07e6c2f6931780b5ac05b5
+	// continuationHistory[inCheck][Capture]
+	ContinuationHistory continuationHistory[2][2];
+
+	uint64_t ttHitAverage;
+
+	// nmpMinPly : null moveの前回の適用ply
+	// nmpColor  : null moveの前回の適用Color
+	int nmpMinPly;
+	Color nmpColor;
 };
 
 struct MainThread : public Thread {

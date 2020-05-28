@@ -50,7 +50,7 @@ struct StateInfo {
     Key boardKey;
     Key handKey;
     Bitboard checkersBB; // 手番側の玉へ check している駒の Bitboard
-#if 0
+#if 1
     Piece capturedPiece;
 #endif
     StateInfo* previous;
@@ -285,6 +285,9 @@ public:
 		assert(pt < Gold);
 		return PromotePieceScore[pt];
 	}
+
+	// 直前の指し手によって捕獲した駒。先後の区別あり。
+	Piece captured_piece() const { return st_->capturedPiece; }
 
 private:
 	void clear();

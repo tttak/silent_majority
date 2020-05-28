@@ -34,6 +34,11 @@ public:
 	Square to() const { return static_cast<Square>((value() >> 0) & 0x7f); }
 	// 移動元
 	Square from() const { return static_cast<Square>((value() >> 7) & 0x7f); }
+
+	// fromとtoをシリアライズする。駒打ちのときのfromは普通の移動の指し手とは異なる。
+	// この関数は、0 ～ ((SQ_NB+7) * SQ_NB - 1)までの値が返る。
+	int from_to() { return (int)(isDrop() ? SQ_NB - 1 + pieceTypeFrom() : from()) * (int)SQ_NB + (int)to(); }
+
 	// 移動元、移動先
 	u32 fromAndTo() const { return (value() >> 0) & 0x3fff; }
 	// 成り、移動元、移動先

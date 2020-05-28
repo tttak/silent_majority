@@ -39,8 +39,8 @@ enum Stages {
 
 } // namespace
 
-MovePicker::MovePicker(const Position& p, const Move ttm, const Depth d, Search::Stack* s)
-	: pos(p), ss(s), depth(d)
+MovePicker::MovePicker(const Position& p, const Move ttm, const Depth d, Search::Stack* s, const ButterflyHistory* mh, const LowPlyHistory* lp, const CapturePieceToHistory* cph, const PieceToHistory** ch, int pl)
+	: pos(p), ss(s), depth(d), mainHistory(mh), lowPlyHistory(lp), captureHistory(cph) , continuationHistory(ch), ply(pl)
 {
 	assert(Depth0 < d);
 
@@ -53,8 +53,8 @@ MovePicker::MovePicker(const Position& p, const Move ttm, const Depth d, Search:
 }
 
 // 静止探索で呼ばれる。
-MovePicker::MovePicker(const Position& p, Move ttm, const Depth d, const Square sq)
-	: pos(p)
+MovePicker::MovePicker(const Position& p, Move ttm, const Depth d, const Square sq, const ButterflyHistory* mh, const CapturePieceToHistory* cph, const PieceToHistory** ch)
+	: pos(p), mainHistory(mh), captureHistory(cph) , continuationHistory(ch)
 {
 	assert(d <= Depth0);
 
@@ -76,8 +76,8 @@ MovePicker::MovePicker(const Position& p, Move ttm, const Depth d, const Square 
     stage += (ttMove == MOVE_NONE);
 }
 
-MovePicker::MovePicker(const Position& p, const Move ttm, Score th)
-	: pos(p), threshold(th)
+MovePicker::MovePicker(const Position& p, const Move ttm, Score th, const CapturePieceToHistory* cph)
+	: pos(p), threshold(th), captureHistory(cph)
 {
 	assert(!pos.inCheck());
 
@@ -93,41 +93,41 @@ MovePicker::MovePicker(const Position& p, const Move ttm, Score th)
 
 void MovePicker::scoreCaptures() {
 	for (auto& m : *this) {
-		m.score = Position::pieceScore(pos.piece(m.move.to())) - LVA(m.move.pieceTypeFrom());
+		m.score = Position::capturePieceScore(pos.piece(m.move.to())) * 6
+				+ (*captureHistory)[m.move.to()][pos.movedPiece(m.move)][pieceToPieceType(pos.piece(m.move.to()))];
 	}
 }
 
 template <bool IsDrop> void MovePicker::scoreNonCapturesMinusPro() {
-	const HistoryStats& history = pos.thisThread()->history;
 	const Color c = pos.turn();
-
-	const CounterMoveStats& cmh = *(ss-1)->counterMoves;
-	const CounterMoveStats& fmh = *(ss-2)->counterMoves;
-	const CounterMoveStats& fm2 = *(ss-4)->counterMoves;
 
 	for (auto& m : *this) {
 		const Piece pc = pos.movedPiece(m.move);
 		const Square sq = m.move.to();
-		m.score = history.get(c, m.move)
-			+ cmh[pc][sq]
-			+ fmh[pc][sq]
-			+ fm2[pc][sq];
+		const int from_to = m.move.from_to();
+
+		m.score = (*mainHistory)[from_to][c]
+				+ 2 * (*continuationHistory[0])[sq][pc]
+				+ 2 * (*continuationHistory[1])[sq][pc]
+				+ 2 * (*continuationHistory[3])[sq][pc]
+				+     (*continuationHistory[5])[sq][pc]
+				+ (ply < MAX_LPH ? 4 * (*lowPlyHistory)[ply][from_to] : 0);
 	}
 }
 
 void MovePicker::scoreEvasions() {
-	const HistoryStats& history = pos.thisThread()->history;
 	const Color c = pos.turn();
 
 	for (auto& m : *this) {
-		if (m.move.isCaptureOrPromotion()) {
-			m.score = pos.capturePieceScore(pos.piece(m.move.to())) + HistoryStats::Max;
-			if (m.move.isPromotion()) {
-				m.score += Position::promotePieceScore(m.move.pieceTypeFrom());
-			}
-		}
+		if (m.move.isCapture())
+			// 捕獲する指し手に関しては簡易SEE + MVV/LVA
+			m.score = pos.capturePieceScore(pos.piece(m.move.to()))
+			        - LVA(pieceToPieceType(pos.movedPiece(m.move)));
 		else
-			m.score = history.get(c, m.move);
+			// 捕獲しない指し手に関してはhistoryの値の順番
+			m.score = (*mainHistory)[m.move.from_to()][c] 
+					+ (*continuationHistory[0])[m.move.to()][pos.movedPiece(m.move)]
+					- (1 << 28);
 	}
 }
 
@@ -189,18 +189,21 @@ Move MovePicker::nextMove(bool skipQuiets) {
 			return move;
 
 	case QUIET_INIT:
-		cur = endBadCaptures;
-		endMoves = generateMoves<NonCaptureMinusPro>(cur, pos);
-		scoreNonCapturesMinusPro<false>();
-		cur = endMoves;
-		endMoves = generateMoves<Drop>(cur, pos);
-		scoreNonCapturesMinusPro<true>();
-		cur = endBadCaptures;
-        partial_insertion_sort(cur, endMoves, -4000 * depth / OnePly);
-		++stage;
+		if (!skipQuiets) {
+			cur = endBadCaptures;
+			endMoves = generateMoves<NonCaptureMinusPro>(cur, pos);
+			scoreNonCapturesMinusPro<false>();
+			cur = endMoves;
+			endMoves = generateMoves<Drop>(cur, pos);
+			scoreNonCapturesMinusPro<true>();
+			cur = endBadCaptures;
+			partial_insertion_sort(cur, endMoves, -3000 * depth / OnePly);
+			++stage;
+		}
 
 	case QUIET:
-		while (cur < endMoves && (!skipQuiets || cur->score >= 0))
+		//while (cur < endMoves && (!skipQuiets || cur->score >= 0))
+		while (cur < endMoves && !skipQuiets)
 		{
 			move = *cur++;
 			if (move != ttMove

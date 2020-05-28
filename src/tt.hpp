@@ -24,9 +24,10 @@ struct TTEntry {
     Score score() const      { return static_cast<Score>(score16); }
 	Score evalScore() const  { return static_cast<Score>(evalScore16); }
     Depth depth() const      { return static_cast<Depth>(depth8 * int(OnePly)); }
+    bool is_pv() const       { return (bool)(genBound8 & 0x4); }
     Bound bound() const      { return static_cast<Bound>(genBound8 & 0x3); }
 
-	void save(Key k, Score s, Bound b, Depth d,  Move m, Score es, u8 g)
+	void save(Key k, Score s, bool pv, Bound b, Depth d,  Move m, Score es, u8 g)
 	{
         assert(d / OnePly * OnePly == d);
 
@@ -42,7 +43,7 @@ struct TTEntry {
             key16       = static_cast<u16>(k >> 48);
             score16     = static_cast<s16>(s);
             evalScore16 = static_cast<s16>(es);
-            genBound8   = static_cast<u8>(g | b);
+            genBound8   = static_cast<u8>(g | u8(pv) << 2 | b);
             depth8      = static_cast<s8>(d / OnePly);
         }
 	}

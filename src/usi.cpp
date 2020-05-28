@@ -423,19 +423,19 @@ void measureGenerateMoves(const Position& pos) {
 
 #ifdef NDEBUG
 #if !defined(EVAL_NNUE)
-const std::string MyName = "SILENT_MAJORITY 1.25";
+const std::string MyName = "SILENT_MAJORITY 1.25 m";
 #else
 
 #if defined(EVAL_NNUE_HALFKP_KK)
-const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP-KK";
+const std::string MyName = "SILENT_MAJORITY 1.25 m NNUE HalfKP-KK";
 #elif defined(EVAL_NNUE_HALFKP_PP)
-const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP-PP";
+const std::string MyName = "SILENT_MAJORITY 1.25 m NNUE HalfKP-PP";
 #elif defined(EVAL_NNUE_HALFKP_GAMEPLY40x4)
-const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP GamePly40x4";
+const std::string MyName = "SILENT_MAJORITY 1.25 m NNUE HalfKP GamePly40x4";
 #elif defined(EVAL_NNUE_HALFKPKFILE)
-const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKPKfile";
+const std::string MyName = "SILENT_MAJORITY 1.25 m NNUE HalfKPKfile";
 #else
-const std::string MyName = "SILENT_MAJORITY 1.25 NNUE HalfKP";
+const std::string MyName = "SILENT_MAJORITY 1.25 m NNUE HalfKP";
 #endif
 
 #endif

@@ -107,6 +107,9 @@ void ThreadPool::readUSIOptions() {
 	while (requested < size()) {
       delete back(), pop_back();
 	}
+
+	// Init thread number dependent search params.
+	Search::init();
 }
 
 uint64_t ThreadPool::nodes_searched() {
